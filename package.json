@@ -1,0 +1,29 @@
+{
+  "name": "intl-is",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Icelandic locale data for the Intl API on runtimes that ship without it (Cloudflare Workers, Chrome, Edge). Not published yet.",
+  "license": "MIT",
+  "author": "Guðröður Atli Jónsson",
+  "repository": "github:gudrodur/intl-is",
+  "type": "module",
+  "sideEffects": ["./src/server.ts", "./src/data/*.ts"],
+  "exports": {
+    "./server": "./src/server.ts",
+    "./client": "./src/client.ts"
+  },
+  "files": ["src", "README.md", "LICENSE"],
+  "scripts": {
+    "probe": "node scripts/probe-worker-intl.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@formatjs/intl-datetimeformat": "7.6.1",
+    "@formatjs/intl-listformat": "8.3.13",
+    "@formatjs/intl-numberformat": "9.4.0",
+    "@formatjs/intl-relativetimeformat": "12.3.13"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}
