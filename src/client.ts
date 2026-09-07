@@ -1,3 +1,15 @@
+// The browser polyfill: load formatjs's `is` data lazily, behind a
+// shouldPolyfill gate so only Chromium-based browsers pay for it.
+//
+// KEPT, BUT NOT WHAT THIS PACKAGE RECOMMENDS. The application this came from
+// shipped it behind a flag, measured it and turned it off: 191,966 B gzip,
+// most of it the time-zone table, against 1,618 B for manual formatters that
+// also cover collation, which no polyfill can. See the README's "In the
+// browser" section and docs/measurements.md.
+//
+// It is still the right choice if you need arbitrary locales and arbitrary
+// option shapes in the browser — which manual formatting cannot give you.
+
 // Browser entry: a lazy loader. Chrome and Edge trim Icelandic from their ICU
 // build (Chrome's UI is not translated to it), so on Chromium every Intl
 // formatter for `is` resolves to en-US; Firefox and Safari ship full ICU and

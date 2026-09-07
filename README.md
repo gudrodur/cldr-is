@@ -1,11 +1,11 @@
 # intl-is
 
-Icelandic locale data for the JavaScript `Intl` API on runtimes that ship
-without it.
+Icelandic locale data, collation, and a working recipe for the JavaScript
+`Intl` API on runtimes that ship without it.
 
-**Status: not published, not yet built as a package.** This repository holds
-the code and the measurements while the approach earns production mileage in
-one application. It will go to npm when that experience exists.
+**Status: not published, not yet built as a package.** This repository holds the
+code and the measurements while the approach earns production mileage in one
+application. It will go to npm when that experience exists.
 
 ## The problem
 
@@ -13,57 +13,173 @@ Chromium keeps only "the minimum locale data for non-UI languages", and
 Icelandic is one of them because Chrome's own UI is not translated to it. Every
 runtime built on Chromium's ICU inherits the gap:
 
-- **Chrome and Edge**: `new Date().toLocaleDateString("is", { month: "long" })`
-  returns `December`, not `desember`. Every Icelandic website that formats
-  dates through `Intl` shows English month and weekday names to most of its
-  visitors, and the usual fix in the wild is a hand-written month table.
-- **Cloudflare Workers (workerd)** embeds the same ICU data, so the server side
-  has the gap too. Upstream: [cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64),
-  open since 2022.
+- **Chromium-based browsers** — Chrome, Edge, Opera, Brave, and anything else on
+  the same engine: `new Date().toLocaleDateString("is", { month: "long" })`
+  returns `December`, not `desember`. **Firefox and Safari ship full ICU and are
+  not affected**, which is what makes this easy to miss: the developer testing in
+  Firefox sees Icelandic and ships English to most of their visitors.
+- **Cloudflare Workers (workerd)** embeds the same ICU data, so a server-rendered
+  page has the gap too. Upstream:
+  [cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64), open
+  since 2022.
 
-Firefox, Safari and Node ship full ICU and are fine.
+Node ships full ICU and is fine — which is why Node is the right oracle to test
+against, and why a test suite can pass while production is wrong.
 
-Measured 2026-09-05 on bare workerd: for `is`, `Intl.DateTimeFormat`,
-`NumberFormat`, `RelativeTimeFormat` and `ListFormat` all resolve to `en-US`;
-only `PluralRules` is correct. Full table in [docs/measurements.md](docs/measurements.md).
+Measured 2026-09-05 on bare workerd and Chrome 152: for `is`,
+`Intl.DateTimeFormat`, `NumberFormat`, `RelativeTimeFormat`, `ListFormat` and
+`Collator` all resolve to `en-US`; only `PluralRules` is correct. Full tables in
+[docs/measurements.md](docs/measurements.md).
 
-## What this is
+## Two ways to close it
 
-A thin recipe over [formatjs](https://formatjs.github.io/docs/polyfills)'s
-CLDR-generated polyfills. formatjs owns the data; the value here is knowing
-exactly what to load and how:
+|  | polyfill the data | format manually |
+|---|---|---|
+| what it is | load formatjs's CLDR data for `is` | render Icelandic from a month table and a few string joins |
+| browser cost | **191,966 B gzip**, Chromium visitors only | **1,618 B gzip**, everyone |
+| speed | 30,474 ns per `toLocaleString` call | 98 ns |
+| covers collation | **no — no Collator polyfill exists** | yes |
+| covers arbitrary locales and options | yes | no, only the shapes you write |
 
-- which four classes need data for `is` (and that `PluralRules` must be left
-  native, it is correct and faster);
-- why it has to be `polyfill-force`, not `polyfill`: the runtime *has* an
-  `Intl.DateTimeFormat`, it just answers in English, so the conditional
-  polyfill does nothing;
-- that `polyfill-force` replaces the global class for **every** locale, so a
-  server that formats other languages must load their data too, or they
-  regress (measured: with only `is` loaded, `en` pluralised 21 as "one" and
-  Polish relative time came out in Icelandic);
-- that the browser needs a `shouldPolyfill` gate and a lazy chunk, so only
-  Chromium visitors download anything;
-- a one-line self-test for a health endpoint.
+Both were built and shipped in the same application. The recommendation below is
+what came out of running them, not a preference stated in advance.
+
+### On the server: polyfill
+
+The server is where the polyfill earns its size. It is loaded once per isolate,
+not per visitor, and it makes every `Intl` class work for every locale the site
+serves — which matters the moment the site is not Icelandic-only.
 
 ```ts
-// server entry, first import
+// server entry, FIRST import
 import "intl-is/server";
-
-// browser, before the first render that formats a date
-import { installIcelandicIntl } from "intl-is/client";
-await installIcelandicIntl();
 ```
 
-`scripts/probe-worker-intl.mjs` measures a bare workerd for any locale and
-prints the table above, so the gap can be re-checked per workerd release. It was
-ported from the application this was developed in and may still name it.
+Four things that are not obvious and each cost a debugging session:
 
-## Cost
+- it has to be `polyfill-force`, not `polyfill`: the runtime *has* an
+  `Intl.DateTimeFormat`, it just answers in English, so the conditional polyfill
+  decides nothing is wrong and does nothing;
+- `polyfill-force` replaces the global class for **every** locale, so a server
+  that formats other languages must load their data too, or they regress
+  (measured: with only `is` loaded, `en` pluralised 21 as "one" and Polish
+  relative time came out in Icelandic);
+- leave `PluralRules` native — it is already correct for `is`, and faster;
+- a one-line self-test on a health endpoint is worth having, because this failure
+  is silent and looks like English copy.
 
-The data is not free: about 3.5 MB raw on a Worker bundle for seven locales, and
-a 190 KB gzip lazy chunk in the browser, most of it time-zone data. Numbers in
+### In the browser: format manually
+
+This is the part where our recommendation changed after measuring it.
+
+The obvious move is to load the same data in the browser behind a
+`shouldPolyfill` gate. We built that ([`src/client.ts`](src/client.ts)), shipped
+it behind a flag, measured it, and **turned it off**: 191,966 B gzip, most of it
+the time-zone table `@formatjs/intl-datetimeformat` needs, to fix a handful of
+rendered dates. The manual formatters that replaced it are 1,618 B gzip for
+dates, numbers *and* collation — 119× smaller — and about 310× faster per call
+than the `toLocaleString` they replaced.
+
+The catch is that "write it by hand" is how people get Icelandic dates subtly
+wrong. So do it the way that is checkable: **pin every manual formatter to the
+CLDR rendering of the same input under Node's full ICU.** The test is the whole
+argument.
+
+```ts
+// The oracle is Node, which still has the data the browser dropped.
+expect(formatIsDateTimeNumeric(d)).toBe(
+  d.toLocaleString("is-IS", { day: "2-digit", month: "2-digit", year: "numeric",
+                              hour: "2-digit", minute: "2-digit" }),
+);
+```
+
+Do **not** pin it with `timeZone: "UTC"` on the Intl side unless the call site
+passes one. That makes the equality true by construction and hides the bug it was
+meant to catch — it hid exactly this one for us, for one review round.
+
+### Server-rendered pages: the two halves must agree
+
+This is the reason the choice matters more on an SSR page than in a SPA. If the
+server formats with full data and the client re-renders with fallback data, the
+markup disagrees with itself and React reports a hydration mismatch — or worse,
+silently keeps one of the two.
+
+There are only two coherent answers: the same data on both sides, or manual
+formatting on both sides. **Icelandic formatting manual everywhere** is the one
+we run: the server keeps the polyfill for the other locales and for anything
+still going through `Intl`, while every Icelandic date, number and sort on both
+sides comes from the same pure functions. They cannot disagree, because they are
+the same code — and they are right, because they are pinned to CLDR.
+
+Measured on the live site in Chrome 152 (2026-09-07): 26 formatted Icelandic
+dates in the server markup, every one present identically in the hydrated DOM,
+zero console errors or warnings. In that same browser at that same moment,
+`toLocaleDateString("is-IS", { month: "long" })` returned `August 15, 2026` and
+`Intl.DateTimeFormat("is").resolvedOptions().locale` returned `en-US`. The
+runtime was broken and the page was right.
+
+## Collation: the part no polyfill can fix
+
+formatjs has no `Collator` polyfill. So on Chromium and workerd,
+`localeCompare(_, "is")` silently sorts by the English alphabet and there is
+nothing to install:
+
+```
+ö z á a þ t æ e ð d   →  aáædðeötzþ   (en-US fallback)
+                      →  aádðetzþæö   (Icelandic)
+```
+
+`á é í ó ú ý ð þ æ ö` are letters in their own right, not accented variants. In a
+member list, Ævar lands second instead of second-to-last and Þórður sorts among
+the T's.
+
+```ts
+import { compareIs } from "intl-is/collate";
+
+names.sort(compareIs);
+```
+
+Pinned to Node full ICU over every ordered pair of the alphabet, 253 Icelandic
+country names, the letters CLDR tailors away from their base letter (`ä ø å œ ß`),
+ASCII punctuation, case, digits, and 200 000 random strings drawn from the whole
+character set — **zero divergences**. Two details were read off ICU rather than
+reasoned about, and both would have been wrong from memory: ICU orders
+punctuation by DUCET category, so `_` sorts before `-` despite the higher code
+point, and `œ`/`ß` expand to `oe`/`ss` instead of taking a weight of their own.
+
+Not claimed: characters outside that set — CJK, emoji, unlisted symbols — get a
+stable code-point order that ICU is not promised to agree with.
+
+It is about **3× slower than a native `Intl.Collator`** (20 ms versus 7 ms
+sorting 10 000 names). That is the honest cost of being correct on a runtime
+whose collator is not, and it is the one measurement here that does not favour
+this approach.
+
+## The trap next door: date-fns is a separate axis
+
+A polyfill fixes `Intl`. It does not fix a library that never used `Intl`.
+[react-day-picker](https://daypicker.dev/) — and therefore every shadcn/ui
+calendar and date picker — localises through **date-fns**, so a fully polyfilled
+page still renders `October 2026` and `Su Mo Tu We Th Fr Sa` until a locale is
+passed:
+
+```ts
+import { is } from "date-fns/locale/is";
+<DayPicker locale={is} />   // október, Má Þr Mi Fi Fö La Su, Monday-first
+```
+
+One more thing to check once you do: date-fns's abbreviated Icelandic months are
+**not** CLDR's. date-fns gives `mars, apríl, júní, júlí, ágúst, sept.` where CLDR
+gives `mar., apr., jún., júl., ágú., sep.` — six of twelve differ. If anything
+else on the page renders CLDR short months, the calendar will not match it.
+
+## Measurements
+
+Every number in this README, with its method and date:
 [docs/measurements.md](docs/measurements.md).
+`scripts/probe-worker-intl.mjs` re-measures a bare workerd for any locale
+(`npm run probe`, needs `wrangler` on PATH), so the gap can be re-checked per
+workerd release.
 
 ## The real fix is upstream
 
