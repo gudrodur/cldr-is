@@ -131,9 +131,20 @@ export default {
       // Empty string, never null: the UNIQUE constraint below counts NULLs as
       // distinct from each other, so a null here would switch off deduplication
       // for every report that does not carry a name — which is most of them.
+      //
+      // The build noise gets stripped too. The first person to use the field
+      // pasted "8.2.4133.47 (Official Build) (x86_64)" straight out of an About
+      // dialog — a version with no browser in it, which tells a later reader of
+      // /summary nothing. The page asks for the name now, and this keeps the
+      // stored value to something a human can read.
       const said =
         typeof body.said === "string"
-          ? body.said.replace(/[^\x20-\x7E]/g, "").slice(0, 40).trim()
+          ? body.said
+              .replace(/[^\x20-\x7E]/g, "")
+              .replace(/\((official build|[^)]*\b(x86|arm|64-bit|32-bit)[^)]*)\)/gi, "")
+              .replace(/\s{2,}/g, " ")
+              .slice(0, 40)
+              .trim()
           : "";
 
       const failing = Array.isArray(body.failing)
