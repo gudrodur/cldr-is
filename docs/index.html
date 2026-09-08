@@ -335,6 +335,12 @@ let broken = 0;
 let checked = 0;
 const stale = [];
 let sortYours = null;
+// Which checks failed, by id. The verdict below is DERIVED from this rather
+// than asserted: the page used to tell every failing browser that "date, number
+// and sort fall back to English", which is false on Edge, where sorting is the
+// one thing that works. A page that has the results in hand and prints a
+// hardcoded sentence instead is the same defect this whole project documents.
+const failedIds = new Set();
 
 for (const c of CASES) {
   const expected = byId.get(c.id);
@@ -350,7 +356,7 @@ for (const c of CASES) {
   try { mine = c.run(); } catch (e) { mine = "threw: " + e.message; }
   const ok = mine === expected.cldr;
   checked++;
-  if (!ok) broken++;
+  if (!ok) { broken++; failedIds.add(c.id); }
   if (c.id === "sort") sortYours = mine;
 
   const isList = c.kind === "list";
@@ -397,17 +403,29 @@ if (broken === 0) {
   why.innerHTML =
     `All ${checked} checks match CLDR, and <code>Intl</code> resolves <code>is</code> ` +
     `to <code>${resolved}</code>. Firefox, Safari and Node ship full ICU — measured. Your ` +
-    `visitors on desktop Chrome and Edge are not so lucky, which is the point of ` +
-    `this ` +
-    `page: from here, the bug is invisible.`;
+    `visitors on desktop Chrome are not so lucky, and on Edge only the sorting ` +
+    `works, which is the point of this page: from here, the bug is invisible.`;
 } else {
   box.className = "verdict broken";
-  title.textContent =
-    `Your browser is missing Icelandic — ${broken} of ${checked} checks are wrong.`;
+  const sortWorks = !failedIds.has("sort");
+  const collatorSays = (() => {
+    try { return new Intl.Collator("is").resolvedOptions().locale; } catch { return resolved; }
+  })();
+  title.textContent = sortWorks
+    ? `Your browser has part of Icelandic — ${broken} of ${checked} checks are wrong.`
+    : `Your browser is missing Icelandic — ${broken} of ${checked} checks are wrong.`;
   why.innerHTML =
     `<code>Intl.DateTimeFormat("is").resolvedOptions().locale</code> returns ` +
-    `<code>${resolved}</code>, so every Icelandic date, number and sort below falls ` +
-    `back to English. Nothing is misconfigured; the data is not in the build.`;
+    `<code>${resolved}</code>, so the Icelandic dates and numbers below fall back to ` +
+    `English. Nothing is misconfigured.` +
+    (sortWorks
+      ? ` <strong>Sorting is the exception here — it works</strong>, and ` +
+        `<code>Intl.Collator("is")</code> resolves to <code>${collatorSays}</code>. ` +
+        `Icelandic collation and Icelandic formatting are separate ICU data trees ` +
+        `and a build can carry one without the other. Microsoft Edge is measured ` +
+        `doing exactly this: it ships the collation data and keeps Chrome's ` +
+        `80-byte stub of the formatting bundle.`
+      : ` The sort below is wrong too — that data is not in the build either.`);
 }
 
 // The date-fns comparison, rendered from the same generated file rather than
