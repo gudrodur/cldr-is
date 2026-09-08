@@ -93,9 +93,11 @@ Fetched and parsed 2026-09-08, independently by two readers:
 | `is` in `localeFilter.includelist` | yes (153 entries) | yes (114) |
 
 **Android is the generous filter and the desktop is the strict one** — the
-opposite of what "mobile builds trim harder" would suggest. `android.json`
-carries a comment naming twenty-one locales it adds over desktop, and `is` is
-in the list:
+opposite of what "mobile builds trim harder" would suggest. `android.json` repeats a comment naming
+twenty-one locales, once above each of `curr`, `coll`, `unit` and `zone`, and
+`is` is in the list. (`region_tree` gains `is` too, with no such comment, and
+the comment never says "over desktop" — that comparison is mine, from
+`common.json` lacking `is` everywhere `android.json` has it.)
 
 > `// Also add new locales after that:`
 > `// "af", "az", "eu", "gl", "hy", "is", "ka", "kk", "km", "ky", "lo", "mk", "mn",`
@@ -108,8 +110,10 @@ a reader looking for `featureFilters.lang_tree` will not find it.)
 
 ### And the one check that fails on Android is the one the filter drops
 
-Every Chromium row from Android fails `currency` and nothing else. That is not a
-coincidence and it is not about Icelandic being half-present:
+Every Chromium row from Android **that has Icelandic** fails `currency` and
+nothing else. (Two rows do not have it — see below; the qualifier is
+load-bearing, and an earlier draft of this very sentence dropped it.) That is
+not a coincidence:
 
 `android.json` keeps a **subset** of currency display names — 74 `+/` rules
 covering 73 distinct codes — and **ISK is not among them**. `common.json` keeps
@@ -123,9 +127,12 @@ their browser         2.500 ISK
 CLDR                  2.500 kr.
 ```
 
-The grouping separator is Icelandic. Only the symbol fell back to the ISO code —
-which is what ICU does when a currency display name is missing, and which Node
-with full ICU reproduces byte for byte:
+The grouping separator is Icelandic. Only the symbol fell back to the ISO code,
+which is what ICU does when a currency display name is missing. One link there
+is unmeasured and worth naming: Node with full ICU produces that exact string
+when asked for code display, but no trimmed build exists here to watch the
+fallback happen. The output matches; the path to it is taken on ICU's
+documented behaviour.
 
 ```js
 (2500).toLocaleString("is", { style: "currency", currency: "ISK" })
@@ -134,12 +141,13 @@ with full ICU reproduces byte for byte:
 // → "2.500 ISK"     ← the screenshot
 ```
 
-**Eleven of the twelve checks are predicted exactly by the filter files**,
-every pass and the single failure. See
+**Eleven of the twelve checks are predicted exactly by the filter files** — ten
+of the eleven passes, plus the single failure. `plural` is the twelfth and the
+filters predict nothing about it, which is the next section's first item. See
 [`/summary`](https://intl-is-reports.gudrodur.workers.dev/summary) for the
 current rows rather than a count typed here.
 
-### Three things this does not explain, stated rather than papered over
+### What the filters do not explain, stated rather than papered over
 
 **`plural` passes everywhere, and nothing in the filters says why.** It fails in
 zero rows — including desktop Chrome rows where the locale resolves `en-US` and
@@ -378,7 +386,8 @@ point is the engine. Nothing turns on them: for Chrome the family number *is*
 Google's Chromium number, so their engine is not in doubt — but it is inferred,
 and this table only shows what was recorded.
 
-Both Edge rows read 10 of 12, so two checks pass: `sort`, and `plural` — which
+Both Edge rows read 10 of 12 today (`/summary` is the authority; this is a
+count a stranger can change), so two checks pass: `sort`, and `plural` — which
 every row in this data passes, desktop Chrome included, for reasons the filter
 files do not explain (above). Collation is the only thing Edge gets right that
 the Chrome rows beside it get wrong.
@@ -527,8 +536,8 @@ day, Chrome 152 with an iPhone user agent:
 | `DateTimeFormat`, `NumberFormat`, `Collator` | `en-US`, `en-US`, `en-US` |
 | sort | **wrong** |
 
-That row would say Safari fails all twelve, which is false — the one real
-Safari row we have passes all twelve. Emulation is the one way to put a confidently wrong row into this
+That row would say Safari fails all twelve, which is false: every Safari row
+in the data passes all twelve, and there is one of them. Emulation is the one way to put a confidently wrong row into this
 data set, and nothing downstream could detect it, because the collector deletes
 the evidence by design. **Real browsers only.** For coverage nobody owns, a
 real-device cloud (BrowserStack, LambdaTest, Sauce Labs — all with free open
@@ -552,8 +561,8 @@ outside them and none straddles two. Two caveats the table cannot carry: one
 Android row has none of it and sits in the first line rather than the third,
 which is the unexplained Android split above; and of the rows on the last line
 one carries a reader-typed build number (`8.2.4133.47`, which is
-Vivaldi's) but **no stored correction names a browser**, and the rest are
-unattributable for the reason given earlier.
+Vivaldi's) but **no correction on a Chrome-labelled desktop row names a
+browser**, and the rest are unattributable for the reason given earlier.
 
 Which is what the ICU filter this whole page is about would predict, and is
 easy to miss if you treat "does this browser speak Icelandic" as one question.
@@ -631,9 +640,10 @@ under re-measurement; the numbers did not. The one that reproduces exactly is
 the uniform draw, and it is the case that argues *against* this choice — which
 is why it is the one kept.
 
-It is **roughly 2× slower than a native `Intl.Collator`** — 2.4× in one run
-and 2.06× in a re-measurement, both on this one machine, which is the precision
-the figure supports (17 ms versus 7 ms
+It is **roughly 2× slower than a native `Intl.Collator`** — 2.4× in one run and
+2.02× in another, both on this one machine and both recorded in
+[docs/measurements.md](docs/measurements.md), which is the precision two runs
+support (17 ms versus 7 ms
 sorting 10 000 names) and the tables above cost **901 B gzip** on top of what it
 was before them. Those are the two measurements here that do not favour this
 approach, and they buy the whole Latin script.
@@ -703,7 +713,7 @@ this README gave, and the difference matters if you were about to give up.
 **On Chromium, the fix is written. It has been waiting on review since 2023.**
 
 - The request: [issues.chromium.org/40624456](https://issues.chromium.org/issues/40624456),
-  open since April 2019 — seven years, 48 comments, 158 stars (as of 2026-09-08).
+  open since April 2019 — seven years as of 2026-09-08, 48 comments, 158 stars (as of 2026-09-08).
 - The fix: [crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575),
   "Add `is` to common.json", uploaded by a Chromium engineer in May 2023,
   rebased that August, still `NEW`. It adds `is` to `curr_tree`, **`coll_tree`**,
@@ -726,8 +736,11 @@ already carries Icelandic, and the whole difference is **81,200 bytes** — whic
 the pending Chromium change's own Gerrit metadata corroborates from the other
 direction, reporting a `size_delta` of **61,776 bytes** on both `icudtl.dat` and
 `icudtb.dat` for the four trees it adds. Vivaldi's figure is larger because it
-also carries `region` and a full root bundle; the two numbers agree about the
-order of magnitude and disagree for a stateable reason.
+also carries `region` and a full root bundle — but that does not close the
+books: 81,168 − 61,776 = 19,392, while `region` (6,336) + root (9,280) + `lang`
+(5,824) comes to 21,440. **2,048 bytes are unaccounted for.** Two independent
+measurements agreeing to within 2 KiB is worth more than either alone; the
+residue is not explained here.
 
 **workerd#64 is not a refusal. It is silence, which is worse.**
 [cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64) was

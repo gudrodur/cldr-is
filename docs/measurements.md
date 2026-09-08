@@ -127,8 +127,9 @@ So the comparison depends on which code you mean:
 
 - versus what this application actually had — 35 call sites, a **majority**
   passing an options object and the rest passing only a locale (2026-09-08).
-  Manual is ~350× faster on the ones with options and roughly 7-11× on the ones
-  without. This line said "all passing options" until it was checked, and then
+  Manual is ~350× faster on the ones with options; on the ones
+  without, the bare-call figures in the table above bracket the ratio rather
+  than pin it, and no run measured that split directly. This line said "all passing options" until it was checked, and then
   gave an exact 17/18 split that the recorded call-site list does not reproduce;
   the split is stated as a majority now because that is what the evidence
   carries;
@@ -202,6 +203,30 @@ has Icelandic and fails only `currency` like every other Chromium row from that
 platform. Opera *on the desktop* and Brave anywhere are still unmeasured, and
 this line said "Opera and Brave are still unmeasured" after the Opera row had
 already arrived.
+
+### compareIs against a native Collator, 2026-09-08
+
+Sorting 7,200 Icelandic names (18 distinct, repeated 400×), median of nine runs,
+Node 24 on one machine, `a.sort(compareIs)` against
+`a.sort(new Intl.Collator("is").compare)`:
+
+| | median |
+|---|---|
+| `compareIs` | 4.94 ms |
+| native `Intl.Collator("is")` | 2.45 ms |
+| **ratio** | **2.02×** |
+
+An earlier run over a different list gave 17.3 ms vs 7.3 ms, a ratio of 2.4×.
+Both are one machine, and the README says "roughly 2×" rather than either
+figure because that is the precision two runs support.
+
+**Why this number existed nowhere for an afternoon.** The 2.06× from a third run
+was quoted in the README with no method recorded anywhere — not here, not in the
+`src/collate.ts` comment the README designates as the method home. A reviewer
+found its only sources were the README, the diff that added it, and the commit
+message defending it. A figure that cites itself is not a measurement, and the
+same edit had just added a promise that every number's method lives in this
+file. This section is that promise being kept.
 
 ## Correctness
 
