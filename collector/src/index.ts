@@ -169,6 +169,19 @@ export default {
         return json({ error: "userAgent, resolved, checked and broken are required" }, 400);
       }
 
+      // The browser's UI language, primary subtag only. The one field that can
+      // settle why two reports from the same Chrome 151 on Android disagree
+      // about whether Icelandic is present — see the Android section of the
+      // README, which has had to retract a version-based explanation twice.
+      //
+      // Two to three lowercase letters and nothing else. Anything longer is
+      // either a region-tagged form the page was asked not to send or someone
+      // probing the endpoint; either way it is dropped rather than stored, on
+      // the same rule as everything else here — a wrong row is worse than an
+      // absent one. Empty string, never null, for the UNIQUE constraint.
+      const language =
+        typeof body.language === "string" && /^[a-z]{2,3}$/.test(body.language) ? body.language : "";
+
       // Optional, typed by the reader when the detected label is wrong. Same
       // treatment as everything else from a stranger: printable ASCII, short.
       // Empty string, never null: the UNIQUE constraint below counts NULLs as
@@ -202,13 +215,14 @@ export default {
       // existed: 8 rows/second from one client, 7x D1's daily write allowance,
       // which would have taken the endpoint down for everyone.
       await env.DB.prepare(
-        `INSERT OR IGNORE INTO reports (first_seen, runtime, engine, said, resolved, checked, broken, failing, country)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR IGNORE INTO reports (first_seen, runtime, engine, language, said, resolved, checked, broken, failing, country)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
         .bind(
           new Date().toISOString().slice(0, 10),
           runtimeLabel(rawAgent),
           engineLabel(rawAgent),
+          language,
           said,
           resolved,
           checked,
@@ -225,6 +239,7 @@ export default {
         stored: {
           runtime: runtimeLabel(rawAgent),
           engine: engineLabel(rawAgent) || null,
+          language: language || null,
           said: said || null,
           resolved,
           checked,
@@ -235,9 +250,9 @@ export default {
 
     if (url.pathname === "/summary" && request.method === "GET") {
       const { results } = await env.DB.prepare(
-        `SELECT runtime, engine, said, resolved, checked, broken, failing, MIN(first_seen) AS since
+        `SELECT runtime, engine, language, said, resolved, checked, broken, failing, MIN(first_seen) AS since
            FROM reports
-          GROUP BY runtime, engine, said, resolved, checked, broken
+          GROUP BY runtime, engine, language, said, resolved, checked, broken
           ORDER BY runtime, engine, said`,
       ).all();
 
@@ -256,7 +271,7 @@ export default {
         note:
           "Reports from https://gudrodur.github.io/intl-is/. The database stores a runtime label " +
           "(browser family, major version, coarse platform), the engine version where the user agent " +
-          "states one, the resolved locale, the check counts, " +
+          "states one, the browser UI language as a bare language code, the resolved locale, the check counts, " +
           "which checks failed, and Cloudflare's two-letter country. It never receives or stores the " +
           "full user agent, an IP address, a cookie or any visitor id. `said` is free text a reader " +
           "typed and is republished here verbatim. One row per runtime, typed name and verdict.",
@@ -276,6 +291,13 @@ export default {
           "empty and CANNOT be backfilled: the user agent is discarded before storage, so the " +
           "engine version of the reports this column was added to answer is gone. Those rows need " +
           "re-reporting, not repairing.",
+        languageNote:
+          "`language` is the browser's own UI language, primary subtag only — `is`, `en` — added " +
+          "2026-09-08 to answer one question: two reports from the same Chrome 151 on Android " +
+          "disagree about whether Icelandic is present, and no field recorded before that date " +
+          "could say why. The ordered navigator.languages list is deliberately NOT collected; it " +
+          "is close to a visitor id. Rows first seen before 2026-09-08 read empty and cannot be " +
+          "backfilled, so the question is answered by NEW Android reports or not at all.",
         iosNote:
           "Every `/ iOS` row measures Apple's WebKit whatever the browser name says — Apple requires " +
           "it — so `Firefox … / iOS` is not a Gecko result and `Chrome … / iOS` is not a Chromium one.",

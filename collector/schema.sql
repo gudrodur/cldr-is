@@ -21,6 +21,12 @@ CREATE TABLE reports (
   -- NULL, see `said` below) for Gecko and for every iOS browser, where no
   -- honest version can be read.
   engine      TEXT    NOT NULL DEFAULT '',
+  -- The browser's own UI language, primary subtag only: "is", "en", "pl". Not
+  -- the ordered navigator.languages list, which is a fingerprinting vector; not
+  -- the region, which cannot affect which ICU language data a build carries.
+  -- Exists to answer why two reports from the same Chrome 151 on Android
+  -- disagree about whether Icelandic is present.
+  language    TEXT    NOT NULL DEFAULT '',
   -- NOT NULL with an empty default, and that is load-bearing rather than tidy:
   -- SQLite treats NULL as DISTINCT in a UNIQUE constraint, so a nullable column
   -- here silently switched the dedupe off for the common case. Every page load
@@ -35,5 +41,5 @@ CREATE TABLE reports (
   failing     TEXT    NOT NULL,          -- JSON array of case ids
   country     TEXT,                      -- Cloudflare's two letters, nothing finer
   -- Makes a repeat visit and a flood equally free: both no-op.
-  UNIQUE (runtime, engine, said, resolved, checked, broken)
+  UNIQUE (runtime, engine, language, said, resolved, checked, broken)
 );

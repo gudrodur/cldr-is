@@ -117,13 +117,18 @@ all. A desktop Chromium with Icelandic and an Android Chromium with Icelandic
 are not carrying the same data.
 
 Stated carefully about what is still **not** established: nothing here explains
-why two Chrome 151 Android devices disagree. The reports carry no device
-language, no device model and no build number, because the page asks for none of
-them — so the difference is real and this data cannot name it. Device language
-is the obvious thing to suspect and remains unmeasured; naming a mechanism here
-would be a third inference of exactly the confidence that has already been
-retracted twice on this page. It stays a question, and the way to answer it is
-more Android reports, not more reasoning.
+why two Chrome 151 Android devices disagree. Naming a mechanism now would be a
+third inference of exactly the confidence that has already been retracted twice
+on this page, so it stays a question — but it is no longer an unanswerable one.
+**Device language was the obvious suspect and was simply not being recorded**,
+which is the same defect as the engine version one paragraph down: the page
+could read it and did not. Since 2026-09-08 every report carries the browser's
+UI language as a bare language code (`is`, `en` — the primary subtag only; the
+ordered `navigator.languages` list is close to a visitor id and is deliberately
+not collected). Two Android reports from devices set to different languages will
+settle it. Every row that raised the question reads empty, so the answer has to
+come from new reports — **if you are reading this on Android, opening the page
+is the experiment.**
 
 **Version numbers in a browser label are not engine versions, and the collector
 used to lose the difference.** "Opera 101" and "Samsung Internet 30" are the
