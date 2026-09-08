@@ -23,11 +23,17 @@ Chromium keeps only "the minimum locale data for non-UI languages", and
 Icelandic is one of them because Chrome's own UI is not translated to it. Every
 runtime built on Chromium's ICU inherits the gap:
 
-- **Chromium-based browsers** — Chrome, Edge, Opera, Brave, and anything else on
-  the same engine: `new Date().toLocaleDateString("is", { month: "long" })`
-  returns `December`, not `desember`. **Firefox and Safari ship full ICU and are
-  not affected**, which is what makes this easy to miss: the developer testing in
-  Firefox sees Icelandic and ships English to most of their visitors.
+- **Chrome and Edge** — `new Date().toLocaleDateString("is", { month: "long" })`
+  returns `December`, not `desember`. This is Chrome's *build*, not the engine:
+  see the Vivaldi measurement below, which is the same Chromium with Icelandic
+  present. Opera and Brave are almost certainly affected and have not been
+  measured here; if you use one, the demo page will tell you in a second. **Firefox is not affected** — measured on
+  Firefox 155, every check passing on the same page where Chrome 152 fails
+  eleven of twelve. That is what makes this easy to miss: the developer testing
+  in Firefox sees Icelandic and ships English to most of their visitors. Safari
+  is reported to ship full ICU too, and it is the one runtime here nobody has
+  measured — there is no Mac in this project. Open the demo page in Safari and
+  the verdict it prints is the measurement; a report either way is welcome.
 - **Cloudflare Workers (workerd)** embeds the same ICU data, so a server-rendered
   page has the gap too. Upstream:
   [cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64), open
@@ -35,6 +41,35 @@ runtime built on Chromium's ICU inherits the gap:
 
 Node ships full ICU and is fine — which is why Node is the right oracle to test
 against, and why a test suite can pass while production is wrong.
+
+### Being Chromium is not the same as being broken: Vivaldi
+
+An earlier version of this README said "Chrome, Edge, Opera, Brave, and anything
+else on the same engine". A reader pointed out that Vivaldi speaks Icelandic,
+and they were right. Measured 2026-09-08 on this machine, both browsers on
+Chromium 152, minutes apart:
+
+| | Vivaldi 8.2.4 | Chrome 152 |
+|---|---|---|
+| `Intl.DateTimeFormat("is").resolvedOptions().locale` | `is` | `en-US` |
+| month `long` | `2. september 2026` | `September 2, 2026` |
+| number | `1.234.567,89` | `1,234,567.89` |
+| currency | `2.500 kr.` | `ISK 2,500` |
+| `localeCompare(_, "is")` sort | `… Ýrr, Þórður, Ævar, Örn` | `… Örn, Úlfur, Ýrr, Þórður` |
+| two-letter locales with `DateTimeFormat` data | **61** | 60 |
+| ditto with `Collator` data | **54** | 53 |
+| `icudtl.dat` | 10,957,760 B | 10,876,560 B |
+
+**One locale of difference. 81,200 bytes.** Neither ships an Icelandic UI
+translation, so this is not the "non-UI language" rule doing its job — it is a
+downstream Chromium vendor deciding the filter costs more than it saves, and
+paying 0.7% of their ICU data for it.
+
+That number is worth holding onto, because the argument against fixing this
+upstream has always been about size, and nobody had measured the size of *one
+locale*. The figure that gets quoted, ~10 MB to ~30 MB, is for swapping in the
+entire full-ICU data file, and it was never a measurement either (see the
+upstream section below).
 
 Measured 2026-09-05 on bare workerd and Chrome 152: for `is`,
 `Intl.DateTimeFormat`, `NumberFormat`, `RelativeTimeFormat`, `ListFormat` and
@@ -48,7 +83,7 @@ Measured 2026-09-05 on bare workerd and Chrome 152: for `is`,
 | what it is | load formatjs's CLDR data for `is` | render Icelandic from a month table and a few string joins |
 | browser cost | **191,966 B gzip**, Chromium visitors only | **2,774 B gzip**, everyone |
 | speed | ~800 ns with the formatter reused; **~28,000 ns** per `toLocaleString` call that passes an options object | ~80 ns |
-| covers collation | **no — no Collator polyfill exists** | yes |
+| covers collation | a `Collator` polyfill exists, but **707,603 B gzip and 12.7% off ICU across Latin** — see below | yes |
 | covers arbitrary locales and options | yes | no, only the shapes you write |
 
 Both were built and shipped in the same application. The recommendation below is
@@ -157,9 +192,27 @@ runtime was broken and the page was right.
 
 ## Collation: the part no polyfill can fix
 
-formatjs has no `Collator` polyfill. So on Chromium and workerd,
-`localeCompare(_, "is")` silently sorts by the English alphabet and there is
-nothing to install:
+This section used to say formatjs had no `Collator` polyfill at all. That was
+asserted rather than checked, and it was wrong:
+[`@formatjs/intl-collator`](https://www.npmjs.com/package/@formatjs/intl-collator)
+has been on npm since 2026-05-14. Measured against the native
+`Intl.Collator("is")` it replaces, with Node full ICU as the oracle:
+
+| @formatjs/intl-collator 0.2.7 | |
+|---|---|
+| an ordinary ten-name Icelandic list | **correct** |
+| Icelandic alphabet + tailored letters, 5,473 ordered pairs | 10 divergences, all on `ä` / `ø` / `å` |
+| every ordered pair of the 450 Latin letters, 202,500 | **25,766 divergences (12.7%)** |
+| bundled, minified, gzipped | **707,603 B** |
+
+Its own README says why: it provides "the ECMA-402 constructor/prototype surface
+and a deterministic baseline comparator", with "full CLDR/UCA collation data
+compilation" still future work. So collation *is* installable now — the basics
+land, CLDR exactness does not, and 707 KB gzip is not a price a page pays for
+sorting.
+
+Without it, on Chromium and workerd `localeCompare(_, "is")` silently sorts by
+the English alphabet:
 
 ```
 ö z á a þ t æ e ð d   →  aáædðeötzþ   (en-US fallback)
@@ -206,11 +259,20 @@ have been wrong from memory:
   other spelling.
 - ICU's secondary order for **combining marks is not code-point order**: U+0306
   (breve) sorts before U+0302 (circumflex). There are 59 distinct ranks among
-  the 112 marks in U+0300–U+036F, the order is the same whatever letter carries
-  them, and the marks compare **position by position** rather than as a set — so
-  `ǡ` (a + U+0307 + U+0304) sorts *before* `ā` (a + U+0304). Adding the code
-  points together, which is the obvious shortcut, makes `ô` and `ŏ`
-  interchangeable.
+  the 112 marks in U+0300–U+036F, and they compare **position by position**
+  rather than as a set — so `ǡ` (a + U+0307 + U+0304) sorts *before* `ā`
+  (a + U+0304). Adding the code points together, which is the obvious shortcut,
+  makes `ô` and `ŏ` interchangeable.
+
+  **The limit of this, stated precisely:** those ranks are applied through the
+  decompose-to-a-base path, which only runs when NFC composes the base and its
+  mark back into one code point. `a` + U+0306 composes to `ă` and is ordered
+  correctly; `n` + U+0306 has no precomposed form, so the mark falls to the
+  fallback band and is ordered by code point instead. Over all 112×112 mark
+  pairs on such a base that is **37.8% divergent from ICU** — every Latin letter
+  the alphabet actually uses is fine, and a base with no precomposed form is
+  not. Doing better means making marks primary-ignorable and accumulating them
+  at the secondary level, which is a different algorithm from the one here.
 
 Not claimed: exact ICU order for characters outside the Latin script — Greek,
 Cyrillic, Hebrew, CJK, emoji, unlisted symbols. Two things *are* guaranteed for
@@ -283,17 +345,33 @@ workerd release.
 
 ## Do not wait for the upstream fix
 
-This is a workaround, and the honest reading of the evidence is that it is a
-**permanent** one. An earlier version of this README said "if you can help
-either along, do that instead of installing this". That was optimism, not a
-reading of the threads.
+Use this today. But the reason to use it is not the one an earlier version of
+this README gave, and the difference matters if you were about to give up.
 
-**Chromium's exclusion is policy, not an oversight.**
+**On Chromium, the fix is written. It has been waiting on review since 2023.**
+
+- The request: [issues.chromium.org/40624456](https://issues.chromium.org/issues/40624456),
+  open since April 2019 — seven years, 48 comments, 158 stars.
+- The fix: [crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575),
+  "Add `is` to common.json", uploaded by a Chromium engineer in May 2023,
+  rebased that August, still `NEW`. It adds `is` to `curr_tree`, **`coll_tree`**,
+  `unit_tree` and `zone_tree` — collation included.
+
+The last substantive word on that CL is from October 2023: *"This will increase
+the data 60K for every users. Is this what Chrome team PM decide to increase the
+locale support?"* Nobody has answered it since.
+
+So this is **not** a refusal, and not quite the policy wall this README used to
+describe. The filter rule is real —
 [`filters/common.json`](https://chromium.googlesource.com/chromium/deps/icu/+/refs/heads/main/filters/common.json)
-says *"Keep only the minimum locale data for non-UI languages"*, and the
-qualifying condition is whether Chrome's own UI is translated into the language
-— not whether the language is used on the web. Icelandic does not qualify and is
-not going to start qualifying because a website asked.
+keeps *"only the minimum locale data for non-UI languages"*, and the qualifying
+condition is whether Chrome's own UI is translated, not whether the language is
+used on the web. But a patch exists that would move Icelandic out of that list,
+and what is blocking it is one unanswered question about roughly 60 KB.
+
+Which is why the Vivaldi measurement above is worth having: a shipping Chromium
+already carries Icelandic, and the whole difference is **81,200 bytes**. That
+number is now posted on both threads.
 
 **workerd#64 is not a refusal. It is silence, which is worse.**
 [cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64) was
@@ -318,14 +396,25 @@ should remain available. Deprioritised P2 → P5, to revisit "once we have ICU4X
 
 That is the whole thing in one comparison: two vendors looked at the same couple
 of megabytes of locale data and reached opposite conclusions, and that is why
-your Icelandic dates work in Firefox and not in Chrome. It is a values split, not a technical
-inevitability — and a values split does not get resolved by filing a bug.
+your Icelandic dates work in Firefox and not in Chrome. It is a values split
+rather than a technical inevitability.
 
-The one thing worth watching is **ICU4X**, which both threads independently
-point at: the workerd reporter ("I'm starting to understand why the Unicode
-Consortium is pushing ICU4X") and Mozilla's own resolution. Data loaded on
-demand per locale is the shape that makes this question go away, rather than the
-shape that makes someone choose which languages are worth 1.8 MB.
+**So why still not wait?** Not because nobody has asked — they have, for seven
+years, and the patch is written. Because none of the three threads is blocked on
+anything a user can supply. Chromium's needs a product decision, workerd's needs
+a maintainer to look at it again, and Mozilla's is waiting on ICU4X. Filing
+another bug adds nothing to any of them; the useful contribution is a
+measurement, which is why the Vivaldi figure went on the two live threads rather
+than into a new issue.
+
+Two things worth watching. The near one is
+[crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575)
+— if it lands, Chrome's half of this problem ends, collation included. The far
+one is **ICU4X**, which both threads independently point at: the workerd
+reporter ("I'm starting to understand why the Unicode Consortium is pushing
+ICU4X") and Mozilla's own resolution. Data loaded on demand per locale is the
+shape that makes this question go away, rather than the shape that makes someone
+choose which languages are worth 1.8 MB.
 
 ## License
 
