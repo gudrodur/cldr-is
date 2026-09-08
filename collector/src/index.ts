@@ -43,6 +43,12 @@ export const FAMILIES: Array<[string, RegExp]> = [
   // On iOS every browser is WebKit underneath and identifies with its own token
   // rather than Chrome/ or Firefox/. Without these, an iPhone running Chrome
   // lands in "other" and looks like an unknown engine when it is not.
+  //
+  // Read those rows carefully: the name is a skin. Apple requires WebKit, so
+  // "Firefox 155 / iOS" and "Chrome 152 / iOS" are both measurements of Safari's
+  // engine, and neither says anything about Gecko or Chromium. The label is kept
+  // because it is what the reader chose and it groups their reports; the engine
+  // it implies is not the one running.
   ["Chrome", /CriOS\/(\d+)/],
   ["Firefox", /FxiOS\/(\d+)/],
   ["Chrome", /Chrome\/(\d+)/],
@@ -231,6 +237,9 @@ export default {
           "is the more reliable of the two when present — but it is unverified self-report, nothing " +
           "checks it, and every distinct spelling is its own row, so read it as a hint and group by " +
           "hand rather than counting on it.",
+        iosNote:
+          "Every `/ iOS` row measures Apple's WebKit whatever the browser name says — Apple requires " +
+          "it — so `Firefox … / iOS` is not a Gecko result and `Chrome … / iOS` is not a Chromium one.",
         knownGap:
           "A row reading `other / iOS` from 2026-09-08 is a detection bug, not an unknown browser: " +
           "the Safari pattern required the word Safari immediately after the version and iOS puts a " +

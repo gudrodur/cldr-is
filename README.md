@@ -43,7 +43,11 @@ runtime built on Chromium's ICU inherits the gap:
   eleven of twelve. That is what makes this easy to miss: the developer testing
   in Firefox sees Icelandic and ships English to most of their visitors. **Safari
   is not affected either** — Safari 26 on macOS and Safari 26 on iOS both pass
-  all twelve checks, reported through the page on 2026-09-08. There is no Apple
+  all twelve checks, reported through the page on 2026-09-08. **Every `/ iOS`
+  row measures Apple's WebKit**, whatever name the label carries: Apple requires
+  it, so a `Firefox 155 / iOS` row (one arrived) says nothing about Gecko and a
+  `Chrome / iOS` row says nothing about Chromium. On iOS the browser name is a
+  skin. There is no Apple
   hardware in this project, so those reports are the measurement. The first one
   arrived as a screenshot with no version in it, which is why the page records a
   runtime label now and why these two carry numbers.
