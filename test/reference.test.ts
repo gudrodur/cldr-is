@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { is as dateFnsIs } from "date-fns/locale/is";
 import reference from "../docs/reference.json" with { type: "json" };
 import { CASES, INSTANT, NAMES, sourceOf } from "../docs/cases.js";
 
@@ -40,5 +41,30 @@ describe("docs/reference.json is current", () => {
     // The row's whole point: English and Icelandic disagree about 21.
     expect(plural.extra?.english).toBe("other");
     expect(plural.cldr).toBe("one");
+  });
+
+  it("still matches what date-fns ships today", () => {
+    // The one claim in this repo about a moving third party. date-fns can change
+    // its Icelandic abbreviations in a patch release, and the README, the
+    // measurements doc and the demo page all render this table — so a change
+    // there has to fail here rather than make three documents wrong at once.
+    const months = Array.from({ length: 12 }, (_, i) =>
+      dateFnsIs.localize.month(i, { width: "abbreviated" }),
+    );
+    expect(months, "date-fns changed — run `npm run measure` and re-read the prose").toEqual(
+      reference.dateFns.monthsShort,
+    );
+    expect(dateFnsIs.options.weekStartsOn).toBe(reference.dateFns.weekStartsOn);
+
+    // And the divergence the docs describe is recomputed, not asserted from memory.
+    const cldr = Array.from({ length: 12 }, (_, i) =>
+      new Intl.DateTimeFormat("is-IS", { month: "short", timeZone: "UTC" }).format(
+        Date.UTC(2026, i, 15),
+      ),
+    );
+    expect(cldr).toEqual(reference.dateFns.cldrMonthsShort);
+    expect(reference.dateFns.differing).toEqual(
+      months.map((m, i) => (m === cldr[i] ? null : i)).filter((i) => i !== null),
+    );
   });
 });

@@ -173,18 +173,34 @@ import { compareIs } from "intl-is/collate";
 names.sort(compareIs);
 ```
 
-Pinned to Node full ICU over every ordered pair of the alphabet, 253 Icelandic
-country names, the letters CLDR tailors away from their base letter (`ä ø å œ ß`),
-ASCII punctuation, case, digits, and 200 000 random strings drawn from the whole
-character set — **zero divergences**. Two details were read off ICU rather than
-reasoned about, and both would have been wrong from memory: ICU orders
-punctuation by DUCET category, so `_` sorts before `-` despite the higher code
-point, and `œ`/`ß` expand to `oe`/`ss` instead of taking a weight of their own.
+Pinned to Node full ICU over every ordered pair of the alphabet in both cases,
+253 Icelandic country names, the letters CLDR tailors away from their base
+letter (`ä ø å œ ß`), both the composed and decomposed spelling of every
+accented letter, ASCII punctuation, case, digits, and 500 000 random strings
+drawn from that set — **407,114 comparisons, zero divergences**.
 
-Not claimed: characters outside that set — CJK, emoji, unlisted symbols — get a
-stable code-point order that ICU is not promised to agree with.
+Three details were read off ICU rather than reasoned about, and all three would
+have been wrong from memory:
 
-It is about **3× slower than a native `Intl.Collator`** (20 ms versus 7 ms
+- ICU orders punctuation by **DUCET category**, so `_` sorts before `-` despite
+  the higher code point.
+- `œ` and `ß` **expand** to `oe`/`ss` rather than taking a weight of their own —
+  and they are not equal to what they expand to. The level they differ on is the
+  **secondary**, which you can see by asking for `sensitivity: "accent"`: no case
+  level, and `ß` still sorts after `ss`. That is why ICU puts `aß` *after* `Ass`
+  even though `a` sorts before `A` — a secondary difference outranks an earlier
+  case difference, and a tertiary marker gets that pair backwards.
+- ICU **normalises before it compares**, so `"á"` and `"a" + U+0301` are the same
+  string to it. Text really does arrive decomposed — macOS filesystems, some
+  paste sources — so a comparator that skips this splits a name from its own
+  other spelling.
+
+Not claimed: exact ICU order for characters outside that set — CJK, emoji,
+unlisted symbols — which sort by code point instead. What *is* guaranteed for
+them is that two different characters never compare equal, because a caller
+reads 0 as "these are the same" and drops one of them.
+
+It is about **2.4× slower than a native `Intl.Collator`** (18 ms versus 7 ms
 sorting 10 000 names). That is the honest cost of being correct on a runtime
 whose collator is not, and it is the one measurement here that does not favour
 this approach.
@@ -206,6 +222,32 @@ One more thing to check once you do: date-fns's abbreviated Icelandic months are
 **not** CLDR's. date-fns gives `mars, apríl, júní, júlí, ágúst, sept.` where CLDR
 gives `mar., apr., jún., júl., ágú., sep.` — six of twelve differ. If anything
 else on the page renders CLDR short months, the calendar will not match it.
+
+That comparison is a claim about a package that can change it in a patch
+release, so it is not maintained by hand: `npm run measure` reads both tables —
+date-fns's and Node's — writes them into `docs/reference.json`, and
+`test/reference.test.ts` fails if date-fns ever ships different ones. The demo
+page renders that file rather than a copy.
+
+## See it fail, in your own browser
+
+[`docs/index.html`](docs/index.html) is a single page that runs all twelve checks
+live and puts your browser's answer beside what CLDR actually says. It is the
+only place the failure is *visible* rather than described — and if you are
+reading this in Firefox it will tell you everything passes, which is exactly the
+trap this repository is about. Open it in Chrome too.
+
+It has to be served rather than opened off the disk (it loads two files beside
+it):
+
+```bash
+npx serve docs      # then open the printed URL
+```
+
+The checks it runs are not a second copy of anything: `docs/cases.js` defines
+each one once, `scripts/measure.mjs` runs those same functions under Node's full
+ICU to produce the "correct" column, and the page imports the same file. A
+comparison page whose two halves have drifted apart is worse than no page.
 
 ## Measurements
 
@@ -233,22 +275,26 @@ not going to start qualifying because a website asked.
 [cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64) was
 opened 2022-09-30. The maintainer was *receptive* — "annoying but maybe not a
 huge deal for a server binary" — and the reporter went and measured it: swapping
-in the full `icudt71l.dat` took the binary from 63 MB to 82 MB, the data from
-~10 MB to ~30 MB, and nothing crashed. Five comments over five days, and then
+in the full `icudt71l.dat` took the binary from 63 MB to 82 MB and nothing
+crashed. (The often-quoted "data goes from ~10 MB to ~30 MB" is the maintainer
+*asking* whether that follows, not a measurement anyone made.) Five comments
+over five days, and then
 **nothing: no comment, no label, no assignee, for 1,434 days** as of 2026-09-08.
 A willing maintainer and four years of silence is a worse signal than a "no",
 because a "no" can be argued with.
 
 **Mozilla went the other way and stopped, which is the interesting part.**
 [Bug 1612379](https://bugzilla.mozilla.org/show_bug.cgi?id=1612379) proposed
-trimming Firefox from 459 locales to roughly 100–150 — about 1.8 MB — and it
+trimming Firefox's ICU data from all 459 locales ICU ships down to the ones
+Firefox itself is translated into — 1,816,512 bytes off the `.dat` file, 11.1 MB
+to 9.3 MB — and it
 stalled on the principle that dropping languages with millions of speakers is
 not acceptable, and that once Firefox's intl data is available to the Web it
 should remain available. Deprioritised P2 → P5, to revisit "once we have ICU4X".
 
-That is the whole thing in one comparison: two vendors looked at the same
-1–2 MB and reached opposite conclusions, and that is why your Icelandic dates
-work in Firefox and not in Chrome. It is a values split, not a technical
+That is the whole thing in one comparison: two vendors looked at the same couple
+of megabytes of locale data and reached opposite conclusions, and that is why
+your Icelandic dates work in Firefox and not in Chrome. It is a values split, not a technical
 inevitability — and a values split does not get resolved by filing a bug.
 
 The one thing worth watching is **ICU4X**, which both threads independently

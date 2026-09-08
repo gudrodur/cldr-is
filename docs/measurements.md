@@ -117,11 +117,17 @@ Sorting, same machine:
 
 | names | `compareIs` | `Intl.Collator("is")` |
 |---|---|---|
-| 253 | 0.5 ms | 0.2 ms |
-| 2 000 | 5.2 ms | 1.5 ms |
-| 10 000 | 20.1 ms | 6.7 ms |
+| 253 | 0.1 ms | 0.1 ms |
+| 2 000 | 3.2 ms | 1.4 ms |
+| 10 000 | 17.8 ms | 7.5 ms |
 
-**The collator is ~3× slower than native ICU.** It is the one number here that
+Re-measured 2026-09-08 after the correctness fixes below. They made it *faster*,
+not slower: dropping a second per-character map lookup for the case rank took
+10 000 names from 20.1 ms to 17.8 ms while adding NFC handling and the expansion
+level. The normalisation is behind a regex test, so a string with no combining
+mark never pays for it.
+
+**The collator is ~2.4× slower than native ICU.** It is the one number here that
 does not favour this approach, and it is the price of being correct on a runtime
 whose own collator is not. An earlier draft was 5.5× worse again (111.9 ms at
 10 000) by allocating two arrays per comparison; walking both strings in place
@@ -137,7 +143,22 @@ Manual output pinned against Node full ICU, character for character:
 |---|---|---|
 | date shapes vs `toLocale*` with the call sites' own options, in `Atlantic/Reykjavik`, `Europe/Copenhagen`, `America/New_York` | 147 | **0** |
 | collation vs `Intl.Collator("is")`, alphabet pairs + 253 country names + tailored letters + punctuation | 243,049 | **0** |
-| collation vs `Intl.Collator("is")`, random strings over the whole character set | 200,000 | **0** |
+| collation vs `Intl.Collator("is")`, every pair over the covered set: alphabet both cases, NFC/NFD spellings, the `ß`/`ẞ`/`œ`/`Œ` expansion families, digits, punctuation, and 500 000 random strings drawn from that set | 407,114 | **0** |
+| `formatIsNumber` vs `toLocaleString("is-IS")` across the whole double range, exponents −320 to +320, plus the non-finite values | 900,028 | **0** |
+
+The second collation row replaced a "200 000 random strings over the whole
+character set — 0 divergences" line on 2026-09-08, because that line was not
+true in the way it read. The pool those strings were drawn from was the
+Icelandic set plus ASCII, not the whole character set, and a second reader who
+went outside it found three divergence classes at once: canonically equivalent
+input (NFC vs NFD) comparing unequal, every character above U+0062 sharing one
+fallback weight so `compareIs("中", "文")` returned 0, and `ß`/`ss` tying where
+ICU separates them. All three are fixed and all three are now pinned in CI; what
+the table claims and what the tests run are the same set. Outside it — CJK,
+emoji, symbols against *each other* — parity is still not claimed, and 3,353
+pairs of a 607,950-pair sweep still diverge there. What is now guaranteed
+everywhere is weaker but unconditional: two different strings never compare
+equal, and the order is by code point.
 
 The date figure is 49 comparisons run in each of three time zones. Running them
 in more than one zone is not decoration: the first version of that sweep rendered
@@ -188,9 +209,10 @@ Not a benchmark, but the same discipline: read rather than assumed.
 | last comment on it | 2022-10-04 |
 | **days dormant** | **1,434** |
 | labels / assignees | none / none |
-| full-ICU cost, measured by the reporter | binary 63 MB → 82 MB, data ~10 MB → ~30 MB |
+| full-ICU cost, **measured** by the reporter | binary 63 MB → 82 MB (`icudt71l.dat` swapped in, nothing crashed) |
+| full-ICU data cost | **not measured by anyone.** "~10 MB → ~30 MB" is the maintainer asking whether that follows, in the comment that also asks the startup question. Quoting it as a measurement is the easy mistake here |
 | Chromium's rule | `filters/common.json`: "Keep only the minimum locale data for non-UI languages" — the condition is whether Chrome's UI is translated, not whether the language is used |
-| Mozilla bug 1612379 (trim Firefox 459 → ~100–150 locales, ~1.8 MB) | stalled on principle, P2 → P5, "revisit once we have ICU4X" |
+| Mozilla bug 1612379 (trim Firefox's ICU data from all 459 locales ICU ships to the ones Firefox is translated into: `.dat` 11,143,312 → 9,326,800 B, −1,816,512) | stalled on principle, P2 → P5, "revisit once we have ICU4X". The bug states 459; it never states a target count |
 
 The maintainer on workerd#64 was receptive, not opposed. Four years of silence
 after a receptive reply is a stronger reason to plan around this than a refusal

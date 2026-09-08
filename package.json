@@ -35,6 +35,7 @@
     "@formatjs/intl-relativetimeformat": "12.3.13"
   },
   "devDependencies": {
+    "date-fns": "^4.4.0",
     "typescript": "7.0.2",
     "vitest": "4.1.11"
   }

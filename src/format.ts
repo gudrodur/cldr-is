@@ -46,7 +46,7 @@ export const IS_MONTHS = [
 
 // Abbreviated (CLDR "short" width) Icelandic month names — what
 // Intl.DateTimeFormat month: "short" renders for `is` ("sep.", "maí" keeps no
-// period).tsx).
+// period).
 export const IS_MONTHS_SHORT = [
   "jan.",
   "feb.",
@@ -202,17 +202,76 @@ export function formatIsDateTimeShortMonth(input: string | Date): string {
   return `${f.day}. ${IS_MONTHS_SHORT[f.monthIndex]} ${f.year}, ${pad2(f.hours)}:${pad2(f.minutes)}`;
 }
 
+// Rounds the shortest decimal representation of a positive non-integer to at
+// most three fraction digits, half away from zero — Intl.NumberFormat's default
+// roundingMode. Returns the integer and fraction parts, the fraction absent
+// when it rounds away entirely.
+function roundDecimal(abs: number): [string, string | undefined] {
+  const text = String(abs);
+  // Exponent form only appears here below 1e-6, and every such value rounds to
+  // zero at three fraction digits.
+  if (text.includes("e")) return ["0", undefined];
+
+  const [whole = "0", fraction = ""] = text.split(".");
+  if (fraction.length <= 3) return [whole, fraction || undefined];
+
+  let kept = fraction.slice(0, 3);
+  if (Number(fraction[3]) >= 5) {
+    // Carry, digit by digit, so the increment happens in decimal and never in
+    // binary. A carry off the front lands on the integer part.
+    const bumped = (BigInt(whole + kept) + 1n).toString().padStart(whole.length + 3, "0");
+    return [bumped.slice(0, -3), bumped.slice(-3).replace(/0+$/, "") || undefined];
+  }
+  kept = kept.replace(/0+$/, "");
+  return [whole, kept || undefined];
+}
+
 // "1.234.567,89" — what a bare toLocaleString("is-IS") renders with Icelandic
 // data: "." for thousands, "," for decimals, at most three fraction digits.
+// Pinned to Node full ICU across the whole double range in test/format.test.ts,
+// not only over the amounts an application is likely to pass.
 export function formatIsNumber(value: number): string {
+  // ICU renders the non-finite values as words of its own, and "Infinity" is
+  // not one of them.
+  if (Number.isNaN(value)) return "NaN";
+  if (!Number.isFinite(value)) return value > 0 ? "∞" : "-∞";
+
   // Negative zero keeps its sign, as toLocaleString("is-IS") renders it
   // ("-0"); value < 0 alone misses -0 (which is not less than zero).
   const negative = value < 0 || Object.is(value, -0);
-  // The ICU default of at most three fraction digits is reproduced by rounding
-  // to the nearest thousandth first, so a decimal input renders the same
-  // "1.234,568" toLocaleString("is-IS") would.
-  const rounded = Math.round(Math.abs(value) * 1000) / 1000;
-  const [intPart = "0", fracPart] = String(rounded).split(".");
+  const abs = Math.abs(value);
+
+  let intPart: string;
+  let fracPart: string | undefined;
+  if (Number.isInteger(abs)) {
+    // Two traps live in this branch, and both only show up above the magnitudes
+    // an ISK amount ever reaches — which is exactly why they survived. String()
+    // switches to exponent notation at 1e21 ("1e+21" where ICU writes the
+    // twenty-two digits), and multiplying by 1000 to get the fraction rounding
+    // pushes a large integer through a value the double cannot represent, so
+    // 1e20 came back as 99.999.999.999.999.980.000.
+    //
+    // Note what ICU does NOT do here: it writes the SHORTEST digits that
+    // round-trip to the double and pads the rest with zeros, so 1.23e22 renders
+    // as 123 followed by twenty zeros. BigInt(abs) would write the double's
+    // exact value instead — ...001.048.576 — which is arithmetically truer and
+    // is not what toLocaleString returns.
+    if (Number.isSafeInteger(abs)) {
+      intPart = String(abs);
+    } else {
+      const [mantissa = "0", exponent = "0"] = abs.toExponential().split("e");
+      intPart = mantissa.replace(".", "").padEnd(Number(exponent) + 1, "0");
+    }
+  } else {
+    // At most three fraction digits, the ICU default. The rounding is done on
+    // the DECIMAL string rather than by multiplying by 1000, because the
+    // multiplication is itself a lossy double operation: 812432265405282.6
+    // came out as …,8 where ICU renders …,6. String(abs) is the shortest
+    // decimal that round-trips to this double, which is the same number ICU
+    // rounds, so rounding that string cannot disagree with it.
+    [intPart = "0", fracPart] = roundDecimal(abs);
+  }
+
   const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   const sign = negative ? "-" : "";
   return fracPart ? `${sign}${grouped},${fracPart}` : `${sign}${grouped}`;

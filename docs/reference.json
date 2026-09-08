@@ -112,5 +112,54 @@
         ]
       }
     }
-  ]
+  ],
+  "dateFns": {
+    "version": "4.4.0",
+    "monthsShort": [
+      "jan.",
+      "feb.",
+      "mars",
+      "apríl",
+      "maí",
+      "júní",
+      "júlí",
+      "ágúst",
+      "sept.",
+      "okt.",
+      "nóv.",
+      "des."
+    ],
+    "cldrMonthsShort": [
+      "jan.",
+      "feb.",
+      "mar.",
+      "apr.",
+      "maí",
+      "jún.",
+      "júl.",
+      "ágú.",
+      "sep.",
+      "okt.",
+      "nóv.",
+      "des."
+    ],
+    "differing": [
+      2,
+      3,
+      5,
+      6,
+      7,
+      8
+    ],
+    "weekdaysShort": [
+      "Su",
+      "Má",
+      "Þr",
+      "Mi",
+      "Fi",
+      "Fö",
+      "La"
+    ],
+    "weekStartsOn": 1
+  }
 }

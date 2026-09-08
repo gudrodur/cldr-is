@@ -213,4 +213,49 @@ describe("formatIsNumber vs the full-ICU is-IS rendering", () => {
     expect(formatIsNumber(1000)).toBe("1.000");
     expect(formatIsNumber(2500)).toBe("2.500");
   });
+
+  it("agrees with ICU outside the magnitudes an amount ever reaches", () => {
+    // The list above tops out around 2.5e7, which is every ISK figure this was
+    // written for — and that is exactly why three divergence classes lived
+    // above it unnoticed. Each entry here is one of them.
+    const edges = [
+      1e15, // still safe
+      2 ** 53,
+      2 ** 53 + 2, // first integers String() renders exactly but arithmetic does not
+      1e20, // the ×1000 round trip used to return 99.999.999.999.999.980.000
+      1e21, // String() switches to exponent form here
+      1.23e22, // ICU pads the shortest round-trip digits, it does not expand the double
+      1e308,
+      Number.MAX_VALUE,
+      Number.MIN_VALUE,
+      -812432265405282.6, // rounding ×1000 in binary gave …,8 for this one
+      -1934506953153.0544,
+      1e-7,
+      2.5e-4,
+    ];
+    for (const value of edges) {
+      expect(formatIsNumber(value), String(value)).toBe(value.toLocaleString("is-IS"));
+    }
+  });
+
+  it("renders the non-finite values ICU's way, not JavaScript's", () => {
+    // toLocaleString gives the mathematical symbol; String() gives the word.
+    expect(formatIsNumber(Infinity)).toBe(Infinity.toLocaleString("is-IS"));
+    expect(formatIsNumber(-Infinity)).toBe((-Infinity).toLocaleString("is-IS"));
+    expect(formatIsNumber(Infinity)).toBe("\u221e");
+    expect(formatIsNumber(Number.NaN)).toBe(Number.NaN.toLocaleString("is-IS"));
+  });
+
+  it("agrees with ICU over 20 000 pseudo-random values spanning the double range", () => {
+    // Deterministic LCG so a failure is reproducible. Exponents from -320 to
+    // +320 so the sweep actually leaves the range an application would feed it;
+    // the wider 900 000-value run lives in the PR.
+    let seed = 20260908;
+    const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    for (let i = 0; i < 20000; i++) {
+      const exponent = Math.floor(next() * 640) - 320;
+      const value = (next() * 2 - 1) * 10 ** exponent;
+      expect(formatIsNumber(value), String(value)).toBe(value.toLocaleString("is-IS"));
+    }
+  });
 });

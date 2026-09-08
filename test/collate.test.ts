@@ -82,24 +82,89 @@ describe("compareIs", () => {
     expect(mixed.slice().sort(compareIs)).toEqual(mixed.slice().sort(icu));
   });
 
-  it("agrees with ICU on 5 000 pseudo-random pairs", () => {
-    // Deterministic LCG so a failure is reproducible; the exhaustive 200 000-pair
-    // run lives in the PR, not in CI.
+  it("treats canonically equivalent input as equal, the way ICU does", () => {
+    // ICU normalises before it compares, so "\u00e1" and "a" + U+0301 are the same
+    // string to it. Text really does arrive decomposed — macOS filesystems and
+    // some paste sources produce NFD — and a comparator that misses this both
+    // splits a name from its own other spelling AND, before the fix, reported two
+    // DIFFERENT decomposed letters as equal, because their combining marks shared
+    // a fallback weight.
+    for (const ch of Array.from("\u00e1\u00e9\u00ed\u00f3\u00fa\u00fd\u00e4\u00f6\u00e5\u00f8\u00fc\u00e7\u00f1\u00c1\u00d3\u00dc")) {
+      expect(sign(compareIs(ch, ch.normalize("NFD"))), `${ch} vs NFD`).toBe(0);
+    }
+    for (const name of ["\u00c1sta", "\u00de\u00f3r\u00f0ur", "\u00c6var", "\u00d6rn"]) {
+      expect(sign(compareIs(name, name.normalize("NFD"))), name).toBe(0);
+    }
+    // The pair that used to tie wrongly: two different letters, both decomposed.
+    expect(sign(compareIs("a\u0300", "a\u0301"))).toBe(sign(icu("a\u0300", "a\u0301")));
+  });
+
+  it("separates an expansion from what it expands to, on ICU's level", () => {
+    // "\u00df" equals "ss" at base sensitivity but not above it, and the level it
+    // differs on is SECONDARY, not tertiary — measured through
+    // sensitivity: "accent", which has no case level and still separates them.
+    // That is why ICU sorts "a\u00df" AFTER "Ass" even though "a" sorts before "A":
+    // a secondary difference outranks an earlier case difference. A tertiary
+    // marker gets that pair backwards, so this test pins the ordering that
+    // distinguishes the two models rather than only the easy "\u00df" vs "ss" pair.
+    const family = ["ss", "sS", "Ss", "SS", "\u00df", "\u1e9e", "oe", "oE", "Oe", "OE", "\u0153", "\u0152"];
+    expect(family.slice().sort(compareIs)).toEqual(family.slice().sort(icu));
+    const straddling = ["a\u00df", "Ass", "\u00dfa", "ssA", "Stra\u00dfe", "Strasse", "STRASSE", "STRA\u1e9eE"];
+    expect(straddling.slice().sort(compareIs)).toEqual(straddling.slice().sort(icu));
+    expect(sign(compareIs("a\u00df", "Ass")), "secondary must outrank the earlier case difference").toBe(
+      sign(icu("a\u00df", "Ass")),
+    );
+  });
+
+  it("never reports two different characters as equal", () => {
+    // ICU parity outside the Icelandic set is NOT claimed, but a comparator that
+    // returns 0 for distinct input is broken whatever the locale: a caller reads
+    // 0 as "these are the same" and drops one of them. An earlier version clamped
+    // the fallback weight into a 100-wide band, so every character above U+0062 —
+    // all of CJK, emoji, symbols and lone surrogates — compared equal to every
+    // other, and a sort of them returned its own input order.
+    const outside = ["\u4e2d", "\u6587", "\u65e5", "\ud83d\ude00", "\ud83d\ude01", "\u00a7", "\u00b6", "\u20ac", "\u00a3", "\u2192", "\u03b1", "\u0416", "\u05d0", "\ud800", "\udc00"];
+    for (const a of outside) {
+      for (const b of outside) {
+        if (a === b) continue;
+        expect(sign(compareIs(a, b)), `${JSON.stringify(a)} vs ${JSON.stringify(b)}`).not.toBe(0);
+      }
+    }
+    // And the order it does give is the documented one: by code POINT, stable
+    // whichever way the input happened to be arranged. Note that this is not
+    // JavaScript's own `<`, which compares UTF-16 code units and therefore puts
+    // an astral character before a lone low surrogate.
+    const byCodePoint = outside
+      .slice()
+      .sort((a, b) => a.codePointAt(0)! - b.codePointAt(0)!);
+    expect(outside.slice().sort(compareIs)).toEqual(byCodePoint);
+    expect(outside.slice().reverse().sort(compareIs)).toEqual(byCodePoint);
+  });
+
+  it("agrees with ICU on 20 000 pseudo-random pairs, decomposed forms included", () => {
+    // Deterministic LCG so a failure is reproducible. The pool is every character
+    // the parity claim covers; the wider full-Unicode sweep lives in the PR,
+    // because outside this set ICU parity is explicitly not claimed.
     let seed = 20260907;
     const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
     const pool = [
       ...Array.from(IS_ALPHABET),
       ...Array.from(IS_ALPHABET.toUpperCase()),
-      ...Array.from("0123456789 _-,.'\"()@&#%+<=>|~$äåøüçñœß"),
+      ...Array.from("0123456789 _-,.'\"()@&#%+<=>|~$äåøüçñœßẞáéíóúýÁÉÍÓÚÝ"),
     ];
     const word = () =>
       Array.from(
         { length: 1 + Math.floor(next() * 7) },
         () => pool[Math.floor(next() * pool.length)],
       ).join("");
-    for (let i = 0; i < 5000; i++) {
-      const a = word();
-      const b = next() < 0.3 ? a.slice(0, -1) + pool[Math.floor(next() * pool.length)] : word();
+    // Half the strings are decomposed, so the NFD path is exercised at scale
+    // rather than only on the hand-picked letters above.
+    const maybeDecompose = (value: string) => (next() < 0.5 ? value.normalize("NFD") : value);
+    for (let i = 0; i < 20000; i++) {
+      const a = maybeDecompose(word());
+      const b = maybeDecompose(
+        next() < 0.3 ? a.slice(0, -1) + pool[Math.floor(next() * pool.length)] : word(),
+      );
       expect(sign(compareIs(a, b)), `${JSON.stringify(a)} vs ${JSON.stringify(b)}`).toBe(
         sign(icu(a, b)),
       );

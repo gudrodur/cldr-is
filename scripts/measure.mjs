@@ -6,7 +6,9 @@
 // versions) and commit the result; test/reference.test.ts fails if the
 // committed file has drifted from what Node produces now, so a stale reference
 // cannot sit unnoticed behind a page that claims to show the correct answers.
+import { createRequire } from "node:module";
 import { writeFileSync } from "node:fs";
+import { is as dateFnsIs } from "date-fns/locale/is";
 import { CASES, INSTANT, NAMES, sourceOf } from "../docs/cases.js";
 
 const cases = CASES.map((c) => ({
@@ -18,15 +20,45 @@ const cases = CASES.map((c) => ({
   ...(c.extra ? { extra: c.extra() } : {}),
 }));
 
+// The date-fns table used to be hand-typed in the README, the measurements doc
+// and the demo page — three copies of a fact that lives in a fourth place, a
+// package that can change it in a patch release. It is read off date-fns here
+// instead, so the claim is a measurement rather than a memory, and so a release
+// that changes the abbreviations fails the drift test instead of quietly making
+// three documents wrong.
+const require = createRequire(import.meta.url);
+const months = (localize) =>
+  Array.from({ length: 12 }, (_, i) => localize.month(i, { width: "abbreviated" }));
+const cldrShortMonth = new Intl.DateTimeFormat("is-IS", { month: "short", timeZone: "UTC" });
+const dateFnsMonths = months(dateFnsIs.localize);
+const cldrMonths = Array.from({ length: 12 }, (_, i) =>
+  cldrShortMonth.format(Date.UTC(2026, i, 15)),
+);
+
+const dateFns = {
+  version: require("date-fns/package.json").version,
+  monthsShort: dateFnsMonths,
+  cldrMonthsShort: cldrMonths,
+  differing: dateFnsMonths.map((m, i) => (m === cldrMonths[i] ? null : i)).filter((i) => i !== null),
+  weekdaysShort: Array.from({ length: 7 }, (_, i) =>
+    dateFnsIs.localize.day(i, { width: "short" }),
+  ),
+  weekStartsOn: dateFnsIs.options.weekStartsOn,
+};
+
 const out = {
   generatedBy: `Node ${process.version} (full ICU)`,
   generatedAt: new Date().toISOString().slice(0, 10),
   instant: INSTANT,
   names: NAMES,
   cases,
+  dateFns,
 };
 
 const path = new URL("../docs/reference.json", import.meta.url);
 writeFileSync(path, JSON.stringify(out, null, 2) + "\n");
 console.log(`wrote ${cases.length} cases from ${out.generatedBy}`);
 for (const c of cases) console.log(`  ${c.label.padEnd(18)} ${c.cldr}`);
+console.log(
+  `date-fns ${dateFns.version}: ${dateFns.differing.length} of 12 abbreviated months differ from CLDR`,
+);
