@@ -256,7 +256,15 @@ import { compareIs } from "intl-is/collate";</code></pre>
     <em>not</em> sent, and neither is the region. The database also keeps
     Cloudflare's two-letter country, and never an IP address, a cookie or any
     visitor id.
-    <strong>If you type a browser name in the box below, that text is stored and
+    <strong>Please do not report from an emulated device.</strong> Chrome
+  DevTools' device toolbar changes the user agent and the viewport, not ICU — an
+  emulated iPhone here is measured, correctly, as Chrome getting Icelandic
+  wrong, and then filed under whatever name the fake user agent claimed. It is
+  the one way to put a confidently wrong row into this data, and nothing can
+  detect it afterwards because the user agent is discarded. Real browsers only.
+</p>
+<p>
+  <strong>If you type a browser name in the box below, that text is stored and
     published exactly as you wrote it</strong> — put a browser there and nothing
     else. Rows are one per runtime, typed name and verdict rather than one per
     visit, so opening this page again adds nothing.

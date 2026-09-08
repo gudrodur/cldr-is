@@ -395,6 +395,78 @@ directly, `localeCompare(_, "is")` sorts by the English alphabet and you need
 what is below. For Edge on Windows, on this evidence, sorting already works —
 while its dates and numbers still do not.
 
+### Confirmed locally: Edge ships Icelandic collation and nothing else
+
+The two Edge rows above are self-reports from Windows. On 2026-09-08 the same
+thing was measured directly, on this machine, on **Linux** — which also settles
+whether it is Windows-specific. It is not.
+
+`microsoft-edge-stable-152.0.4191.66` extracted from Microsoft's rpm (no
+install, see below), run headless against the same twelve checks:
+
+| Edge 152 / Linux | |
+|---|---|
+| `Intl.DateTimeFormat("is").resolvedOptions().locale` | `en-US` |
+| `Intl.NumberFormat("is").resolvedOptions().locale` | `en-US` |
+| **`Intl.Collator("is").resolvedOptions().locale`** | **`is`** |
+| long month | `September 2, 2026` |
+| number | `1,234,567.89` |
+| sort | **correct** |
+
+So it is not a behaviour that happens to look right — **ICU genuinely resolves
+`is` for collation and `en-US` for everything else in the same browser.** That
+is the mechanism the `resolvedCollator` field was added to capture, confirmed
+without waiting for a report to carry it.
+
+### 81,200 bytes buys all of Icelandic. Edge spends 1.5 MB and does not get it.
+
+Three Chromium **152** builds on one machine, three `icudtl.dat` files:
+
+| build | `icudtl.dat` | vs Chrome | Icelandic it has |
+|---|---|---|---|
+| Google Chrome 152 | 10,876,560 B | — | none |
+| Vivaldi 8.2 (Chromium 152) | 10,957,760 B | **+81,200 B** | **all of it** |
+| Microsoft Edge 152 | 12,461,408 B | **+1,584,848 B** | collation only |
+
+Edge carries **nineteen times more extra ICU data than Vivaldi and still cannot
+write `desember`.** Whatever that 1.5 MB is, it is not the Icelandic formatting
+trees — while Vivaldi's 81 KB is, and is the whole fix.
+
+That is the sharpest available answer to the cost objection on
+[crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575),
+where the open question since 2023 has been whether the data increase is worth
+it: **0.7% of the ICU data Chrome already ships**, measured on two shipping
+Chromium forks that made opposite choices.
+
+**Reproduce it without installing anything:**
+
+```bash
+curl -sLO https://packages.microsoft.com/yumrepos/edge/Packages/m/microsoft-edge-stable-152.0.4191.66-1.x86_64.rpm
+rpm2cpio microsoft-edge-stable-*.rpm | cpio -idm          # extract, do not install
+./opt/microsoft/msedge/msedge --headless=new --no-sandbox \
+  --user-data-dir=/tmp/e --virtual-time-budget=3000 --dump-dom <your-probe.html>
+```
+
+### Do not report from an emulated device — it produces a false row
+
+Chrome DevTools' device toolbar, and `--user-agent` on the command line, change
+the user agent and the viewport. **They do not change ICU.** Measured the same
+day, Chrome 152 with an iPhone user agent:
+
+| Chrome 152, `--user-agent=<iPhone Safari>` | |
+|---|---|
+| what the collector would label it | `Safari 26 / iOS` |
+| `DateTimeFormat`, `NumberFormat`, `Collator` | `en-US`, `en-US`, `en-US` |
+| sort | **wrong** |
+
+That row would say Safari fails all twelve, which is false — real Safari passes
+all twelve. Emulation is the one way to put a confidently wrong row into this
+data set, and nothing downstream could detect it, because the collector deletes
+the evidence by design. **Real browsers only.** For coverage nobody owns, a
+real-device cloud (BrowserStack, LambdaTest, Sauce Labs — all with free open
+source tiers) runs real builds on real operating systems; a device emulator does
+not.
+
 ### Three different partial data sets, not one gap
 
 Lining the measurements up, Chromium builds are not simply missing Icelandic or
