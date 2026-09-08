@@ -151,3 +151,21 @@ person on Facebook.)
 Six of twelve differ. `weekStartsOn` is 1 and the short weekdays are
 `Su Má Þr Mi Fi Fö La`, both correct — the divergence is only in the abbreviated
 month names, and only matters if something else on the page renders CLDR ones.
+
+## Upstream, measured 2026-09-08
+
+Not a benchmark, but the same discipline: read rather than assumed.
+
+| | |
+|---|---|
+| cloudflare/workerd#64 opened | 2022-09-30 |
+| last comment on it | 2022-10-04 |
+| **days dormant** | **1,434** |
+| labels / assignees | none / none |
+| full-ICU cost, measured by the reporter | binary 63 MB → 82 MB, data ~10 MB → ~30 MB |
+| Chromium's rule | `filters/common.json`: "Keep only the minimum locale data for non-UI languages" — the condition is whether Chrome's UI is translated, not whether the language is used |
+| Mozilla bug 1612379 (trim Firefox 459 → ~100–150 locales, ~1.8 MB) | stalled on principle, P2 → P5, "revisit once we have ICU4X" |
+
+The maintainer on workerd#64 was receptive, not opposed. Four years of silence
+after a receptive reply is a stronger reason to plan around this than a refusal
+would be.
