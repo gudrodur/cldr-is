@@ -11,8 +11,9 @@ problem in one comparison, and it takes ten seconds.
 
 If everything passes, the bug is invisible from where you are sitting, which is
 exactly how it reaches production. Firefox, Safari and Node ship full ICU;
-Chrome and Edge on the **desktop** do not. Android is unresolved and interesting
-— reports disagree with each other. See below.
+Chrome and Edge on the **desktop** do not — but the same Chromium 152 **on
+Android does**, which readers of this page discovered in an afternoon. See
+below.
 
 **Status: not published, not yet built as a package.** This repository holds the
 code and the measurements while the approach earns production mileage in one
@@ -59,39 +60,39 @@ runtime built on Chromium's ICU inherits the gap:
 Node ships full ICU and is fine — which is why Node is the right oracle to test
 against, and why a test suite can pass while production is wrong.
 
-### Android is unresolved, and the reports disagree
+### Chromium 152 on Android has Icelandic. The same version on the desktop does not.
 
 | | resolved | checks failing |
 |---|---|---|
-| Chrome 152 / Android | **`is`** | 1 of 12 — `currency` only |
-| Samsung Internet 30 / Android | **`is`** | 1 of 12 — `currency` only |
-| **Chrome 151 / Android** | `en-US` | **11 of 12** |
-| Chrome 152 / macOS, for contrast | `en-GB` | 11 of 12 |
+| Chrome 152 / Android | **`is`** | 1 of 12 — `currency` |
+| Edge 152 / Android | **`is`** | 1 of 12 — `currency` |
+| Samsung Internet 30 / Android | **`is`** | 1 of 12 — `currency` |
+| **Chrome 151 / Android** | `en-US` | 11 of 12 |
+| Chrome 152 / Linux · Windows · macOS | `en-US`, `en-US`, `en-GB` | 11 of 12 each |
 
-Two Android runtimes resolve `is` and get dates, numbers, lists, relative time
-and **collation** right. A third, one Chrome version older, fails exactly like
-the desktop.
+Three Chromium-based browsers at 152 on Android pass eleven of twelve. The one
+at 151 fails like a desktop. And Chromium 152 on three desktop platforms fails
+too — same version number, three operating systems, no Icelandic.
 
-This section said "Android appears not to be affected" for about an hour, on the
-strength of the first two rows, and the third arrived and made that wrong. Two
-agreeing reports were not enough to generalise from and it should not have been
-written as though they were.
+So this is not one phone with an unusual language setting: three different
+browsers, agreeing, against a fourth one version older and against the same
+version everywhere else. **Whatever carries Icelandic to Android arrived in 152
+and does not reach the desktop build.**
 
-What the three rows will support: **something varies on Android that does not
-vary on the desktop**, and the candidates are the Chrome version (151 against
-152) and the device — a phone set to Icelandic may be pulling different data,
-which is not something the desktop build does. Nothing here distinguishes them.
+Stated carefully, because an earlier version of this section was written from two
+rows and had to be retracted an hour later. What is *not* established: that the
+device language plays no part — no report here carries it, and the page does not
+ask. A device set to Icelandic is still a live alternative explanation for the
+Android rows, and one Android report from a device set to English would settle
+it in a sentence.
 
-The one failing check on the two that pass is worth keeping in view whatever the
-explanation turns out to be: `currency` is its own ICU tree, `curr_tree`, and it
-is one of the four the pending Chromium change
+**Every one of the three that passes fails on exactly one check, and it is the
+same check.** `currency` is its own ICU tree, `curr_tree`, and it is one of the
+four the pending Chromium change
 [crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575)
-adds for `is`. A build that is one tree short of correct is a strange coincidence
-if these locales are simply absent.
-
-**More Android reports would settle it**, and they are the cheapest evidence
-available: open the page on a phone. Note the version and the system language if
-you do.
+adds for `is` on the desktop. A build one tree short of correct is a strange
+shape for a locale that is simply absent — and it is the same tree the desktop
+change would add.
 
 ### Being Chromium is not the same as being broken: Vivaldi
 
