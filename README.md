@@ -11,7 +11,8 @@ problem in one comparison, and it takes ten seconds.
 
 If everything passes, the bug is invisible from where you are sitting, which is
 exactly how it reaches production. Firefox, Safari and Node ship full ICU;
-Chrome and Edge do not.
+Chrome and Edge on the **desktop** do not — and on Android they appear to, which
+the page found within an hour of going up. See below.
 
 **Status: not published, not yet built as a package.** This repository holds the
 code and the measurements while the approach earns production mileage in one
@@ -33,7 +34,7 @@ Chromium keeps only "the minimum locale data for non-UI languages", and
 Icelandic is one of them because Chrome's own UI is not translated to it. Every
 runtime built on Chromium's ICU inherits the gap:
 
-- **Chrome and Edge** — `new Date().toLocaleDateString("is", { month: "long" })`
+- **Chrome and Edge on the desktop** — `new Date().toLocaleDateString("is", { month: "long" })`
   returns `December`, not `desember`. This is Chrome's *build*, not the engine:
   see the Vivaldi measurement below, which is the same Chromium with Icelandic
   present. Opera and Brave are almost certainly affected and have not been
@@ -53,6 +54,29 @@ runtime built on Chromium's ICU inherits the gap:
 
 Node ships full ICU and is fine — which is why Node is the right oracle to test
 against, and why a test suite can pass while production is wrong.
+
+### Android appears not to be affected, and that is a reader's finding
+
+Within an hour of the page going up, two reports arrived from Android:
+
+| | resolved | checks failing |
+|---|---|---|
+| Chrome 152 / Android | **`is`** | 1 of 12 — `currency` only |
+| Samsung Internet 30 / Android | **`is`** | 1 of 12 — `currency` only |
+| Chrome 152 / macOS, for contrast | `en-GB` | 11 of 12 |
+
+So Chromium on Android resolves `is` and formats dates, numbers, lists, relative
+time and **collation** correctly, while the same version on the desktop does
+none of it. The one thing missing is currency — which is its own ICU tree,
+`curr_tree`, and one of the four the pending Chromium change
+[crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575)
+adds. That the gap on Android is exactly one tree wide is a point in that
+change's favour from a direction nobody was looking.
+
+**Treat this as a lead rather than a result.** It comes from the collector,
+which anyone can POST to, on hardware nobody here owns; two independent runtimes
+agreeing is suggestive and not proof. If you have an Android device, opening the
+page is the confirmation.
 
 ### Being Chromium is not the same as being broken: Vivaldi
 

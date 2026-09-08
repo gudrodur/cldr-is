@@ -359,7 +359,8 @@ if (broken === 0) {
   why.innerHTML =
     `All ${checked} checks match CLDR, and <code>Intl</code> resolves <code>is</code> ` +
     `to <code>${resolved}</code>. Firefox, Safari and Node ship full ICU — measured. Your ` +
-    `visitors on Chrome and Edge are not so lucky, which is the point of this ` +
+    `visitors on desktop Chrome and Edge are not so lucky, which is the point of ` +
+    `this ` +
     `page: from here, the bug is invisible.`;
 } else {
   box.className = "verdict broken";
