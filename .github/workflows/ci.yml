@@ -30,10 +30,20 @@ jobs:
       - run: npm test
       - name: npm test (Europe/Copenhagen)
         run: TZ=Europe/Copenhagen npm test
-      # Regenerating must be a no-op. If it is not, someone edited a case
-      # without running `npm run measure`, and the page and the reference have
-      # parted company.
-      - name: docs/reference.json is current
+      # Regenerating must be a no-op in the ANSWERS. If it is not, someone
+      # edited a case without running `npm run measure`, and the page and the
+      # reference have parted company.
+      #
+      # `generatedBy` and `generatedAt` are deliberately excluded. They record
+      # which Node produced the file, which is worth keeping in the file and is
+      # not an answer — and it differs between a laptop and a runner on another
+      # patch release. The first run of this workflow failed on exactly that,
+      # v24.19.0 against v24.20.0, with all twelve renderings identical. A gate
+      # that fails on something harmless is how a gate stops being read.
+      - name: docs/reference.json answers are current
         run: |
+          answers() { jq -S 'del(.generatedBy, .generatedAt)' "$1"; }
+          answers docs/reference.json > /tmp/recorded.json
           npm run measure
-          git diff --exit-code docs/reference.json
+          answers docs/reference.json > /tmp/fresh.json
+          diff -u /tmp/recorded.json /tmp/fresh.json
