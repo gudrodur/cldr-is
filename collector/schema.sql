@@ -1,17 +1,23 @@
--- One row per page load that reported.
+-- One row per (runtime, verdict). Not one row per visit.
 --
--- What is deliberately NOT here: IP address, any cookie or visitor id, referrer,
--- anything that identifies a person. The user agent is the subject of the
--- measurement — without it a verdict is a result with no subject — and it is the
--- only thing here that could be called identifying at all.
-CREATE TABLE IF NOT EXISTS reports (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  seen_at      TEXT    NOT NULL,          -- ISO 8601, second precision
-  user_agent   TEXT    NOT NULL,
-  resolved     TEXT    NOT NULL,          -- Intl.DateTimeFormat("is").resolvedOptions().locale
-  checked      INTEGER NOT NULL,          -- how many checks ran
-  broken       INTEGER NOT NULL,          -- how many disagreed with CLDR
-  failing      TEXT    NOT NULL,          -- JSON array of the case ids that failed
-  country      TEXT                       -- Cloudflare's coarse country, no finer
+-- What is deliberately NOT here: the full user agent, any IP address, any
+-- cookie or visitor id, and any timestamp finer than a date. The first version
+-- stored raw user agents and republished them on a public endpoint; a rare user
+-- agent is a visitor id whatever the column is called.
+--
+-- `runtime` is derived in the Worker from a fixed family list and a major
+-- version — "Safari 18 / macOS" — and the raw string is discarded before this
+-- table sees anything.
+DROP TABLE IF EXISTS reports;
+CREATE TABLE reports (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  first_seen  TEXT    NOT NULL,          -- date only, YYYY-MM-DD
+  runtime     TEXT    NOT NULL,          -- "Safari 18 / macOS"
+  resolved    TEXT    NOT NULL,          -- Intl.DateTimeFormat("is").resolvedOptions().locale
+  checked     INTEGER NOT NULL,
+  broken      INTEGER NOT NULL,
+  failing     TEXT    NOT NULL,          -- JSON array of case ids
+  country     TEXT,                      -- Cloudflare's two letters, nothing finer
+  -- Makes a repeat visit and a flood equally free: both no-op.
+  UNIQUE (runtime, resolved, checked, broken)
 );
-CREATE INDEX IF NOT EXISTS reports_seen_at ON reports (seen_at);

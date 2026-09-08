@@ -8,7 +8,11 @@
   "name": "intl-is-reports",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-08",
-  "observability": { "enabled": true },
+  // Invocation logs are sampled at 100% by default and carry request metadata
+  // Cloudflare enriches — which a review could not fully enumerate, and which
+  // the page's privacy paragraph does not scope out. Off, rather than promising
+  // something about a pipeline nobody here can inspect.
+  "observability": { "enabled": false },
   "d1_databases": [
     {
       "binding": "DB",
