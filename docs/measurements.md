@@ -110,8 +110,10 @@ not help — hoisting the options constant changed nothing (28,290 vs 28,513 ns)
 
 So the comparison depends on which code you mean:
 
-- versus what this application actually had — 35 call sites, all passing options
-  — manual is roughly **350×** faster;
+- versus what this application actually had — 35 call sites, of which **17
+  passed an options object and 18 passed only a locale** (counted from the diff
+  of the change, 2026-09-08) — manual is ~350× faster on the 17 and ~12× on the
+  18. This line said "all passing options" until it was checked;
 - versus a reader who hoists and reuses an `Intl.DateTimeFormat` — about **10×**;
 - versus a bare no-options call — about **7×**.
 
@@ -215,15 +217,28 @@ assumed:
 
 | pool | unlisted letters ABOVE the alphabet | one shared low band |
 |---|---|---|
-| assigned characters U+0020–U+2FFF | **18.5%** diverge | 53.5% |
-| Latin + CJK + digits + punctuation | **1.0%** | 37.9% |
-| Greek + Cyrillic | 14.1% | 14.1% |
-| CJK block | 1.3% | 1.3% |
-| uniform draw over the whole code space | 23.1% | **2.0%** |
+| assigned characters U+0020–U+2FFF | **fewer** divergences | roughly twice as many |
+| Latin + CJK + digits + punctuation | **fewer** | several times as many |
+| Greek + Cyrillic | equal | equal |
+| CJK block | equal | equal |
+| uniform draw over the whole code space | 23.1% | **~1.5%** |
 
-The last row is the honest cost and the reason to state the method: a uniform
-draw is mostly *unassigned* code points, where ICU's implicit weights happen to
-sit low. Optimising for that would be optimising for input that is not text.
+**This table used to carry exact percentages and no longer does, on purpose.**
+They were 18.5 / 53.5 / 1.0 / 37.9 / 14.1 / 1.3 / 23.1 / 2.0, and an independent
+re-measurement could not reproduce most of them — not because the conclusion is
+wrong but because the pools were named and never defined, and the result moves by
+tens of points with how you build them. A balanced Latin/CJK/digit/punctuation
+pool and a Han-heavy one give 33% and 4.8% for the same cell.
+
+What survives re-measurement, and is what the decision actually rested on: on
+every text-like pool the above-the-alphabet placement diverges from ICU **less**,
+on single-script letter pools the two designs are **identical** (both order
+unlisted letters by code point), and the shared low band wins on exactly one
+pool — a uniform draw over the whole code space, which is mostly *unassigned*
+code points and therefore not text. That last cell is the only one whose
+construction is unambiguous, and it reproduces exactly at 23.1%.
+
+A number nobody can reproduce is not a measurement, whichever way it points.
 
 The second collation row replaced a "200 000 random strings over the whole
 character set — 0 divergences" line on 2026-09-08, because that line was not
@@ -245,11 +260,19 @@ The date figure is 49 comparisons run in each of three time zones. Running them
 in more than one zone is not decoration: the first version of that sweep rendered
 UTC wall-clock where the replaced calls rendered the viewer's, and it passed its
 own tests because they pinned `timeZone: "UTC"` on both sides. In Reykjavík
-everything matched; in Copenhagen 19 of 49 diverged.
+everything matched; in Copenhagen 19 of 49 diverged. Re-measured against the
+pre-fix sources 2026-09-08: 19 of 49 in `Europe/Copenhagen`, and in
+`Atlantic/Reykjavik` every date comparison matched — one of the 49, a `-0`
+number case, is a separate zone-independent defect the same commit fixed.
 
 ## Server-rendered page, hydration
 
-Live site, Chrome 152, 2026-09-07:
+Live site, Chrome 152, 2026-09-07 — re-measured 2026-09-08 and the substance
+holds while the count does not, which is what a live page does: **25** formatted
+dates today, all 25 identical in the hydrated DOM, zero console messages. The
+published 26 counted one more regex hit, a date written by hand inside an event
+description that lives in the serialized payload rather than the visible markup.
+Treat the integer as a snapshot of an event list, not a constant:
 
 | | result |
 |---|---|

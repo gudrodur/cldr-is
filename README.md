@@ -133,10 +133,16 @@ They are also faster, but read that claim carefully rather than off the table
 above. `toLocaleString(locale, options)` costs ~28 µs because it builds a
 formatter on nearly every call; the same call **without** an options object is
 ~930 ns, and a hoisted `Intl.DateTimeFormat` you reuse is ~816 ns. So against
-the code we actually replaced — 35 call sites that all passed options — manual
-is roughly 350× faster, and against a reader who caches their formatter
-properly it is about 10×. Both are real; only the first is dramatic, and it is
-dramatic because of a pattern that is easy to fix without any of this.
+the code we actually replaced — 35 call sites — manual is between 12× and 350×
+faster depending on the site, and against a reader who caches their formatter
+properly it is about 10×.
+
+That range is the honest shape of it, and an earlier version of this paragraph
+hid it by saying the 35 sites "all passed options". Counted from the diff: **17
+passed an options object** (the ~28,000 ns case, where manual is ~350× faster)
+and **18 passed only a locale string** (the ~930 ns case, where it is ~12×). The
+dramatic number belongs to half the sites, and it is dramatic because of a
+pattern that is easy to fix without any of this.
 
 [`src/format.ts`](src/format.ts) has the shapes we needed, and
 `formatIsNumber` beside them. Import them, or copy the file — both are fine.
