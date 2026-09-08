@@ -13,6 +13,14 @@ CREATE TABLE reports (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   first_seen  TEXT    NOT NULL,          -- date only, YYYY-MM-DD
   runtime     TEXT    NOT NULL,          -- "Safari 18 / macOS", what the browser reports
+  -- "Chromium 152", read from the `Chrome/<major>` token every Chromium browser
+  -- carries whatever it calls itself. The family version is NOT the engine
+  -- version — Opera 101 and Samsung Internet 30 are their own numbering — and
+  -- that is the whole reason this column exists: without it a table of Android
+  -- rows cannot say whether it shows one engine version or five. Empty (never
+  -- NULL, see `said` below) for Gecko and for every iOS browser, where no
+  -- honest version can be read.
+  engine      TEXT    NOT NULL DEFAULT '',
   -- NOT NULL with an empty default, and that is load-bearing rather than tidy:
   -- SQLite treats NULL as DISTINCT in a UNIQUE constraint, so a nullable column
   -- here silently switched the dedupe off for the common case. Every page load
@@ -27,5 +35,5 @@ CREATE TABLE reports (
   failing     TEXT    NOT NULL,          -- JSON array of case ids
   country     TEXT,                      -- Cloudflare's two letters, nothing finer
   -- Makes a repeat visit and a flood equally free: both no-op.
-  UNIQUE (runtime, said, resolved, checked, broken)
+  UNIQUE (runtime, engine, said, resolved, checked, broken)
 );

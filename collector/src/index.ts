@@ -109,6 +109,27 @@ export function runtimeLabel(userAgent: string): string {
   return `${family}${version ? " " + version : ""} / ${platform}`;
 }
 
+// The engine version, separately, because the family version is not it.
+//
+// "Opera 101 / Android" and "Samsung Internet 30 / Android" both pass while
+// "Chrome 151 / Android" fails, and until 2026-09-08 nothing here could say
+// whether that was one Chromium version disagreeing with another or five
+// unrelated numbers sitting in a table. Every Chromium browser carries
+// `Chrome/<major>` in its user agent whatever it calls itself — that IS the
+// engine version, and it was being read and discarded.
+//
+// Empty for everything else, and deliberately not guessed at: Gecko's `rv:`
+// tracks Firefox's own number so it adds nothing, and every iOS browser reports
+// the same frozen `AppleWebKit/605.1.15` regardless of which WebKit is running,
+// so a version there would be a fabrication. `Chrome/` never appears in an iOS
+// user agent — Chrome on iOS is `CriOS/`, Edge is `EdgiOS/` — so this cannot
+// mislabel a WebKit browser as Chromium.
+export function engineLabel(userAgent: string): string {
+  const hit = /Chrome\/(\d+)/.exec(userAgent);
+  if (!hit || !hit[1] || hit[1].length > 4) return "";
+  return `Chromium ${hit[1]}`;
+}
+
 // Strict: `Number(true)` is 1, and the first version stored "1 check ran" for a
 // report that sent `checked: true`. A wrong row is worse than a rejected one.
 function integerInRange(value: unknown, min: number, max: number): number | null {
@@ -181,12 +202,13 @@ export default {
       // existed: 8 rows/second from one client, 7x D1's daily write allowance,
       // which would have taken the endpoint down for everyone.
       await env.DB.prepare(
-        `INSERT OR IGNORE INTO reports (first_seen, runtime, said, resolved, checked, broken, failing, country)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR IGNORE INTO reports (first_seen, runtime, engine, said, resolved, checked, broken, failing, country)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
         .bind(
           new Date().toISOString().slice(0, 10),
           runtimeLabel(rawAgent),
+          engineLabel(rawAgent),
           said,
           resolved,
           checked,
@@ -200,16 +222,23 @@ export default {
       // it makes the promise checkable from the browser console.
       return json({
         ok: true,
-        stored: { runtime: runtimeLabel(rawAgent), said: said || null, resolved, checked, broken },
+        stored: {
+          runtime: runtimeLabel(rawAgent),
+          engine: engineLabel(rawAgent) || null,
+          said: said || null,
+          resolved,
+          checked,
+          broken,
+        },
       });
     }
 
     if (url.pathname === "/summary" && request.method === "GET") {
       const { results } = await env.DB.prepare(
-        `SELECT runtime, said, resolved, checked, broken, failing, MIN(first_seen) AS since
+        `SELECT runtime, engine, said, resolved, checked, broken, failing, MIN(first_seen) AS since
            FROM reports
-          GROUP BY runtime, said, resolved, checked, broken
-          ORDER BY runtime, said`,
+          GROUP BY runtime, engine, said, resolved, checked, broken
+          ORDER BY runtime, engine, said`,
       ).all();
 
       const totals = await env.DB.prepare(
@@ -226,7 +255,8 @@ export default {
       return json({
         note:
           "Reports from https://gudrodur.github.io/intl-is/. The database stores a runtime label " +
-          "(browser family, major version, coarse platform), the resolved locale, the check counts, " +
+          "(browser family, major version, coarse platform), the engine version where the user agent " +
+          "states one, the resolved locale, the check counts, " +
           "which checks failed, and Cloudflare's two-letter country. It never receives or stores the " +
           "full user agent, an IP address, a cookie or any visitor id. `said` is free text a reader " +
           "typed and is republished here verbatim. One row per runtime, typed name and verdict.",
@@ -237,6 +267,15 @@ export default {
           "is the more reliable of the two when present — but it is unverified self-report, nothing " +
           "checks it, and every distinct spelling is its own row, so read it as a hint and group by " +
           "hand rather than counting on it.",
+        engineNote:
+          "`engine` is the Chromium major read from the `Chrome/<major>` token every Chromium " +
+          "browser carries, whatever it calls itself — so Opera's 101 and Samsung Internet's 30 " +
+          "can be placed on the same axis as Chrome's 152. It is empty, never guessed, for Gecko " +
+          "(whose `rv:` only repeats Firefox's own number) and for every iOS browser (which all " +
+          "report the same frozen AppleWebKit build). Rows first seen before 2026-09-08 also read " +
+          "empty and CANNOT be backfilled: the user agent is discarded before storage, so the " +
+          "engine version of the reports this column was added to answer is gone. Those rows need " +
+          "re-reporting, not repairing.",
         iosNote:
           "Every `/ iOS` row measures Apple's WebKit whatever the browser name says — Apple requires " +
           "it — so `Firefox … / iOS` is not a Gecko result and `Chrome … / iOS` is not a Chromium one.",

@@ -11,9 +11,11 @@ problem in one comparison, and it takes ten seconds.
 
 If everything passes, the bug is invisible from where you are sitting, which is
 exactly how it reaches production. Firefox, Safari and Node ship full ICU;
-Chrome and Edge on the **desktop** do not — but the same Chromium 152 **on
-Android does**, which readers of this page discovered in an afternoon. See
-below.
+Chrome and Edge on the **desktop** do not — while **on Android it depends on
+the device**, not on the version: two reports from the same Chrome 151 on
+Android disagree, and every Android build that does have Icelandic is missing
+the same one piece of it. Readers of this page found all of that in an
+afternoon. See below.
 
 **Status: not published, not yet built as a package.** This repository holds the
 code and the measurements while the approach earns production mileage in one
@@ -38,8 +40,10 @@ runtime built on Chromium's ICU inherits the gap:
 - **Chrome and Edge on the desktop** — `new Date().toLocaleDateString("is", { month: "long" })`
   returns `December`, not `desember`. This is Chrome's *build*, not the engine:
   see the Vivaldi measurement below, which is the same Chromium with Icelandic
-  present. Opera and Brave are almost certainly affected and have not been
-  measured here; if you use one, the demo page will tell you in a second. **Firefox is not affected** — measured on
+  present. **Opera has since been measured — on Android, where it has Icelandic**
+  (below); Opera on the desktop and Brave anywhere are still unmeasured, and the
+  Android result is a reason to stop assuming rather than to assume the other
+  way. If you use one, the demo page will tell you in a second. **Firefox is not affected** — measured on
   Firefox 155, every check passing on the same page where Chrome 152 fails
   eleven of twelve. That is what makes this easy to miss: the developer testing
   in Firefox sees Icelandic and ships English to most of their visitors. **Safari
@@ -60,39 +64,66 @@ runtime built on Chromium's ICU inherits the gap:
 Node ships full ICU and is fine — which is why Node is the right oracle to test
 against, and why a test suite can pass while production is wrong.
 
-### Chromium 152 on Android has Icelandic. The same version on the desktop does not.
+### Chromium on Android is split down the middle, and not by version
 
 | | resolved | checks failing |
 |---|---|---|
 | Chrome 152 / Android | **`is`** | 1 of 12 — `currency` |
+| Chrome 151 / Android | **`is`** | 1 of 12 — `currency` |
+| Chrome 151 / Android · "Messenger browser" | **`is`** | 1 of 12 — `currency` |
 | Edge 152 / Android | **`is`** | 1 of 12 — `currency` |
+| Opera 101 / Android | **`is`** | 1 of 12 — `currency` |
 | Samsung Internet 30 / Android | **`is`** | 1 of 12 — `currency` |
 | **Chrome 151 / Android** | `en-US` | 11 of 12 |
-| Chrome 152 / Linux · Windows · macOS | `en-US`, `en-US`, `en-GB` | 11 of 12 each |
+| Chrome 152 / Linux · Windows · macOS | `en-US`, `en-US`/`en-GB`, `en-GB` | 11 of 12 each |
 
-Three Chromium-based browsers at 152 on Android pass eleven of twelve. The one
-at 151 fails like a desktop. And Chromium 152 on three desktop platforms fails
-too — same version number, three operating systems, no Icelandic.
+**Six Android rows have Icelandic and one does not, and `Chrome 151 / Android`
+is on both sides of that line.** Same family, same major version, same platform,
+opposite verdicts. So whatever decides this is not the Chromium version. On the
+desktop nothing is split at all: every row that is Chrome is on the English
+side, and the desktop rows carrying Icelandic are Vivaldi wearing Chrome's user
+agent — a different browser, and a different signature (see below).
 
-So this is not one phone with an unusual language setting: three different
-browsers, agreeing, against a fourth one version older and against the same
-version everywhere else. **Whatever carries Icelandic to Android arrived in 152
-and does not reach the desktop build.**
+An earlier version of this section, written when 151 had reported once, said
+"whatever carries Icelandic to Android arrived in 152 and does not reach the
+desktop build". Two more 151 reports arrived the same day and killed it. The
+retraction is left visible on purpose: this section has now been rewritten twice
+by strangers' data, and both times the previous version was a rule inferred from
+a corpus too small to carry one.
 
-Stated carefully, because an earlier version of this section was written from two
-rows and had to be retracted an hour later. What is *not* established: that the
-device language plays no part — no report here carries it, and the page does not
-ask. A device set to Icelandic is still a live alternative explanation for the
-Android rows, and one Android report from a device set to English would settle
-it in a sentence.
+**What survives is sharper than what was retracted.** Every Android row that has
+Icelandic fails **exactly one check, and it is the same check every time** —
+`currency` — across four browser families and two Chromium majors. `currency` is
+its own ICU tree, `curr_tree`, and it is one of the four the pending Chromium
+change [crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575)
+adds for `is` on the desktop. Six independent rows landing on one tree short of
+correct is not the shape of a locale that is simply absent; it is the shape of a
+partial locale data set, missing the same tree the desktop patch would add.
 
-**Every one of the three that passes fails on exactly one check, and it is the
-same check.** `currency` is its own ICU tree, `curr_tree`, and it is one of the
-four the pending Chromium change
-[crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575)
-adds for `is` on the desktop. A build one tree short of correct is a strange
-shape for a locale that is simply absent — and it is the same tree the desktop
-change would add.
+**Two different passing signatures, and they should not be conflated.** Android
+passes 11 of 12. The desktop rows that pass — Vivaldi, see below — pass all 12.
+A desktop Chromium with Icelandic and an Android Chromium with Icelandic are not
+carrying the same data.
+
+Stated carefully about what is still **not** established: nothing here explains
+why two Chrome 151 Android devices disagree. The reports carry no device
+language, no device model and no build number, because the page asks for none of
+them — so the difference is real and this data cannot name it. Device language is
+the obvious thing to suspect and remains unmeasured; naming a mechanism here
+would be a third inference of exactly the confidence that has already been
+retracted twice on this page. It stays a question, and the way to answer it is
+more Android reports, not more reasoning.
+
+**Version numbers in a browser label are not engine versions, and the collector
+used to lose the difference.** "Opera 101" and "Samsung Internet 30" are the
+vendor's own numbering; the Chromium they run on is a separate number sitting
+right there in the same user agent, and it was being read and discarded. Since
+2026-09-08 the collector stores it as `engine` (`Chromium 152`) alongside the
+family label, so a row like Opera's can be placed on the same axis as Chrome's
+instead of guessed at. **The rows in the table above predate that column and
+cannot be backfilled** — the user agent is discarded before storage by design,
+so the engine version of the reports that raised the question no longer exists
+anywhere. They need re-reporting, not repairing.
 
 ### Being Chromium is not the same as being broken: Vivaldi
 
