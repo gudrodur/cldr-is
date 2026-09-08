@@ -25,7 +25,8 @@
   "scripts": {
     "probe": "node scripts/probe-worker-intl.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "measure": "node scripts/measure.mjs"
   },
   "dependencies": {
     "@formatjs/intl-datetimeformat": "7.6.1",

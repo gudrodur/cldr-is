@@ -201,80 +201,61 @@ import { compareIs } from "intl-is/collate";</code></pre>
 </main>
 
 <script type="module">
-const INSTANT = "2026-09-02T12:07:07Z";
-const d = new Date(INSTANT);
+import { CASES, sourceOf } from "./cases.js";
 
-// Each case runs the same expression the reference was generated from. Date
-// cases pin timeZone: "UTC" on both sides so the comparison is about locale
-// data, not about where the reader happens to be sitting.
-const live = {
-  "Bare date": () => d.toLocaleDateString("is-IS", { timeZone: "UTC" }),
-  "Long month": () => d.toLocaleDateString("is-IS", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }),
-  "Weekday": () => d.toLocaleDateString("is-IS", { weekday: "long", timeZone: "UTC" }),
-  "Short month": () => d.toLocaleDateString("is-IS", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }),
-  "Date + time": () => d.toLocaleString("is-IS", { timeZone: "UTC" }),
-  "Number": () => (1234567.89).toLocaleString("is-IS"),
-  "Currency": () => (2500).toLocaleString("is-IS", { style: "currency", currency: "ISK" }),
-  "Relative time": () => new Intl.RelativeTimeFormat("is").format(-2, "day"),
-  "List": () => new Intl.ListFormat("is").format(["a", "b", "c"]),
-  "Language name": () => new Intl.DisplayNames(["is"], { type: "language" }).of("is"),
-  "Plural category": () => new Intl.PluralRules("is").select(21),
-};
-
+// The correct answers, measured under Node full ICU by scripts/measure.mjs.
+// The checks themselves come from cases.js — the same file the generator ran,
+// so the two sides of every row cannot drift apart.
 const ref = await (await fetch("./reference.json")).json();
+const byId = new Map(ref.cases.map((c) => [c.id, c]));
+
 const tbody = document.querySelector("#cases tbody");
+const escape = (t) => t.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[ch]);
+const short = (csv) => csv.split(", ").slice(0, 3).join(", ") + ", …";
+
 let broken = 0;
 let checked = 0;
+let sortYours = null;
 
-// Sorting runs here rather than in the `live` map because its result is a list,
-// and the table shows a shortened form of it with a link to the full comparison.
-const yours = ref.names.slice().sort((a, b) => a.localeCompare(b, "is"));
-const correct = ref.cases.find((c) => c.label === "Sort").cldr.split(", ");
-live["Sort"] = () => yours.join(", ");
-const short = (list) => list.slice(0, 3).join(", ") + ", …";
-
-// One row needs a gloss or it reads as a bug: select() returns a CLDR CATEGORY
-// KEYWORD, not text. The keywords are the same English identifiers in every
-// locale — "one" here is not an untranslated "einn".
-const NOTES = {
-  "Plural category": (c) =>
-    `A category name, not a translation. The keywords are the same in every ` +
-    `locale (Icelandic has <code>${c.categories.is.join("</code>, <code>")}</code>; ` +
-    `Polish has <code>${c.categories.pl.join("</code>, <code>")}</code>). ` +
-    `This row is the proof the Icelandic rules really are present: English ` +
-    `answers <code>${c.contrast.value}</code> for 21, Icelandic answers ` +
-    `<code>${c.cldr}</code> — which is why it is “21 bíll”, not “21 bílar”.`,
-};
-
-for (const c of ref.cases) {
-  const run = live[c.label];
-  if (!run) continue;
+for (const c of CASES) {
+  const expected = byId.get(c.id);
+  if (!expected) continue;                       // reference.json is stale; skip rather than lie
   let mine;
-  try { mine = run(); } catch (e) { mine = "threw: " + e.message; }
-  const ok = mine === c.cldr;
+  try { mine = c.run(); } catch (e) { mine = "threw: " + e.message; }
+  const ok = mine === expected.cldr;
   checked++;
   if (!ok) broken++;
-  const isSort = c.label === "Sort";
+  if (c.id === "sort") sortYours = mine;
+
+  const isList = c.kind === "list";
   const tr = document.createElement("tr");
+
   const what = document.createElement("td");
-  what.innerHTML = `${c.label}<br><code>${c.expr.replace(/</g, "&lt;")}</code>` +
-    (isSort ? ` <a href="#sorting" class="tag">full list below</a>` : "") +
-    (NOTES[c.label] ? `<div class="note">${NOTES[c.label](c)}</div>` : "");
-  const yoursCell = document.createElement("td");
-  yoursCell.className = "yours " + (ok ? "ok" : "bad");
-  yoursCell.textContent = isSort ? short(yours) : mine;
+  what.innerHTML =
+    `${escape(c.label)}<br><code>${escape(sourceOf(c))}</code>` +
+    (isList ? ` <a href="#sorting" class="tag">full list below</a>` : "") +
+    (c.note && expected.extra ? `<div class="note">${c.note(expected.extra)}</div>` : "");
+
+  const yours = document.createElement("td");
+  yours.className = "yours " + (ok ? "ok" : "bad");
+  yours.textContent = isList ? short(mine) : mine;
+
   const cldr = document.createElement("td");
-  cldr.textContent = isSort ? short(correct) : c.cldr;
-  tr.append(what, yoursCell, cldr);
+  cldr.textContent = isList ? short(expected.cldr) : expected.cldr;
+
+  tr.append(what, yours, cldr);
   tbody.append(tr);
 }
 
-for (const [id, list] of [["sort-yours", yours], ["sort-cldr", correct]]) {
+// The sorting comparison in full, side by side.
+const yoursList = (sortYours ?? "").split(", ");
+const correctList = byId.get("sort").cldr.split(", ");
+for (const [id, list] of [["sort-yours", yoursList], ["sort-cldr", correctList]]) {
   const ol = document.getElementById(id);
   list.forEach((name, i) => {
     const li = document.createElement("li");
     li.textContent = name;
-    if (yours[i] !== correct[i]) li.className = "moved";
+    if (yoursList[i] !== correctList[i]) li.className = "moved";
     ol.append(li);
   });
 }
@@ -287,21 +268,25 @@ const why = document.getElementById("verdict-why");
 if (broken === 0) {
   box.className = "verdict fine";
   title.textContent = "Your browser has the Icelandic data.";
-  why.innerHTML = `All ${checked} checks match CLDR, and <code>Intl</code> resolves ` +
-    `<code>is</code> to <code>${resolved}</code>. Firefox, Safari and Node ship full ` +
-    `ICU. Your visitors on Chrome and Edge are not so lucky — that is the point of ` +
-    `this page: the bug is invisible from here.`;
+  why.innerHTML =
+    `All ${checked} checks match CLDR, and <code>Intl</code> resolves <code>is</code> ` +
+    `to <code>${resolved}</code>. Firefox, Safari and Node ship full ICU. Your ` +
+    `visitors on Chrome and Edge are not so lucky — which is the point of this ` +
+    `page: from here, the bug is invisible.`;
 } else {
   box.className = "verdict broken";
-  title.textContent = `Your browser is missing Icelandic — ${broken} of ${checked} checks are wrong.`;
-  why.innerHTML = `<code>Intl.DateTimeFormat("is").resolvedOptions().locale</code> ` +
-    `returns <code>${resolved}</code>, so every Icelandic date, number and sort ` +
-    `below falls back to English. Nothing is misconfigured; the data is not in ` +
-    `the build.`;
+  title.textContent =
+    `Your browser is missing Icelandic — ${broken} of ${checked} checks are wrong.`;
+  why.innerHTML =
+    `<code>Intl.DateTimeFormat("is").resolvedOptions().locale</code> returns ` +
+    `<code>${resolved}</code>, so every Icelandic date, number and sort below falls ` +
+    `back to English. Nothing is misconfigured; the data is not in the build.`;
 }
 
 document.getElementById("provenance").textContent =
-  `Reference generated with ${ref.generatedBy} for the instant ${ref.instant}.`;
+  `Correct answers generated with ${ref.generatedBy} on ${ref.generatedAt}, for the ` +
+  `instant ${ref.instant}. The checks themselves are shared with the generator, ` +
+  `so both sides run the same code.`;
 </script>
 </body>
 </html>

@@ -1,5 +1,6 @@
 {
   "generatedBy": "Node v24.19.0 (full ICU)",
+  "generatedAt": "2026-09-08",
   "instant": "2026-09-02T12:07:07Z",
   "names": [
     "Þórður",
@@ -15,74 +16,95 @@
   ],
   "cases": [
     {
+      "id": "date-bare",
       "label": "Bare date",
-      "expr": "toLocaleDateString(\"is-IS\")",
+      "expr": "d.toLocaleDateString(\"is-IS\", { timeZone: \"UTC\" })",
+      "kind": "value",
       "cldr": "2.9.2026"
     },
     {
+      "id": "date-long-month",
       "label": "Long month",
-      "expr": "toLocaleDateString(\"is-IS\", { day:\"numeric\", month:\"long\", year:\"numeric\" })",
+      "expr": "d.toLocaleDateString(\"is-IS\", { day: \"numeric\", month: \"long\", year: \"numeric\", ...UTC })",
+      "kind": "value",
       "cldr": "2. september 2026"
     },
     {
+      "id": "weekday",
       "label": "Weekday",
-      "expr": "toLocaleDateString(\"is-IS\", { weekday:\"long\" })",
+      "expr": "d.toLocaleDateString(\"is-IS\", { weekday: \"long\", ...UTC })",
+      "kind": "value",
       "cldr": "miðvikudagur"
     },
     {
+      "id": "date-short-month",
       "label": "Short month",
-      "expr": "toLocaleDateString(\"is-IS\", { day:\"numeric\", month:\"short\", year:\"numeric\" })",
+      "expr": "d.toLocaleDateString(\"is-IS\", { day: \"numeric\", month: \"short\", year: \"numeric\", ...UTC })",
+      "kind": "value",
       "cldr": "2. sep. 2026"
     },
     {
+      "id": "date-time",
       "label": "Date + time",
-      "expr": "toLocaleString(\"is-IS\")",
+      "expr": "d.toLocaleString(\"is-IS\", { timeZone: \"UTC\" })",
+      "kind": "value",
       "cldr": "2.9.2026, 12:07:07"
     },
     {
+      "id": "number",
       "label": "Number",
       "expr": "(1234567.89).toLocaleString(\"is-IS\")",
+      "kind": "value",
       "cldr": "1.234.567,89"
     },
     {
+      "id": "currency",
       "label": "Currency",
-      "expr": "(2500).toLocaleString(\"is-IS\", { style:\"currency\", currency:\"ISK\" })",
+      "expr": "(2500).toLocaleString(\"is-IS\", { style: \"currency\", currency: \"ISK\" })",
+      "kind": "value",
       "cldr": "2.500 kr."
     },
     {
+      "id": "relative-time",
       "label": "Relative time",
       "expr": "new Intl.RelativeTimeFormat(\"is\").format(-2, \"day\")",
+      "kind": "value",
       "cldr": "fyrir 2 dögum"
     },
     {
+      "id": "list",
       "label": "List",
-      "expr": "new Intl.ListFormat(\"is\").format([\"a\",\"b\",\"c\"])",
+      "expr": "new Intl.ListFormat(\"is\").format([\"a\", \"b\", \"c\"])",
+      "kind": "value",
       "cldr": "a, b og c"
     },
     {
+      "id": "display-name",
       "label": "Language name",
-      "expr": "new Intl.DisplayNames([\"is\"],{type:\"language\"}).of(\"is\")",
+      "expr": "new Intl.DisplayNames([\"is\"], { type: \"language\" }).of(\"is\")",
+      "kind": "value",
       "cldr": "íslenska"
     },
     {
+      "id": "sort",
       "label": "Sort",
-      "expr": "names.sort((a,b) => a.localeCompare(b, \"is\"))",
+      "expr": "NAMES.slice().sort((a, b) => a.localeCompare(b, \"is\")).join(\", \")",
+      "kind": "list",
       "cldr": "Aðalheiður, Ásta, Einar, Ína, Ólafur, Úlfur, Ýrr, Þórður, Ævar, Örn"
     },
     {
+      "id": "plural",
       "label": "Plural category",
       "expr": "new Intl.PluralRules(\"is\").select(21)",
+      "kind": "value",
       "cldr": "one",
-      "contrast": {
-        "label": "English for the same number",
-        "value": "other"
-      },
-      "categories": {
-        "is": [
+      "extra": {
+        "english": "other",
+        "categoriesIs": [
           "one",
           "other"
         ],
-        "pl": [
+        "categoriesPl": [
           "one",
           "few",
           "many",
