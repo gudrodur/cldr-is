@@ -201,12 +201,15 @@ export default {
           "Reports from https://gudrodur.github.io/intl-is/. The database stores a runtime label " +
           "(browser family, major version, coarse platform), the resolved locale, the check counts, " +
           "which checks failed, and Cloudflare's two-letter country. It never receives or stores the " +
-          "full user agent, an IP address, a cookie or any visitor id. One row per runtime and verdict.",
+          "full user agent, an IP address, a cookie or any visitor id. `said` is free text a reader " +
+          "typed and is republished here verbatim. One row per runtime, typed name and verdict.",
         caveat:
           "`runtime` is what the browser reports and some cannot be told apart from the page at all " +
           "— Vivaldi is byte-identical to Chrome in the user agent, the brand list and the " +
           "high-entropy hints. `said` is a name the reader typed when the detection was wrong, and " +
-          "is the more reliable of the two when present.",
+          "is the more reliable of the two when present — but it is unverified self-report, nothing " +
+          "checks it, and every distinct spelling is its own row, so read it as a hint and group by " +
+          "hand rather than counting on it.",
         totals,
         runtimes: results,
       });
