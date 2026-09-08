@@ -34,7 +34,7 @@ const json = (body: unknown, status = 200) =>
 // Order matters: Vivaldi, Edge, Opera, Brave and Samsung Internet all carry
 // "Chrome" in their user agent, and Safari's is carried by every WebKit browser.
 // Most specific first, and the generic ones last.
-const FAMILIES: Array<[string, RegExp]> = [
+export const FAMILIES: Array<[string, RegExp]> = [
   ["Vivaldi", /Vivaldi\/(\d+)/],
   ["Edge", /Edg(?:e|A|iOS)?\/(\d+)/],
   ["Opera", /OPR\/(\d+)/],
@@ -54,7 +54,7 @@ const FAMILIES: Array<[string, RegExp]> = [
   ["Node", /node\.js\/v?(\d+)/i],
 ];
 
-const PLATFORMS: Array<[string, RegExp]> = [
+export const PLATFORMS: Array<[string, RegExp]> = [
   ["iOS", /iPhone|iPad|iPod/],
   ["Android", /Android/],
   ["macOS", /Mac OS X|Macintosh/],
@@ -66,6 +66,13 @@ const PLATFORMS: Array<[string, RegExp]> = [
 // platform. Nothing else survives — not the build number, not the OS version,
 // not the original string.
 //
+// This table is hand-written, and it has been wrong three times in one day: iOS
+// Safari, then Chrome on iOS, then Firefox on iOS, each discovered only because
+// a real report arrived reading "other". A hand-written table describing someone
+// else's strings is a guess that looks like a fact — so it is pinned in
+// collector/runtime-label.test.ts against real user agents, and anything it
+// cannot place is COUNTED in /summary rather than quietly filed under "other".
+//
 // Some browsers cannot be told apart from the client side at all. Measured
 // 2026-09-08: Vivaldi 8.2.4 sends Chrome's user agent verbatim, reports "Google
 // Chrome" in navigator.userAgentData.brands, AND in the high-entropy
@@ -73,7 +80,7 @@ const PLATFORMS: Array<[string, RegExp]> = [
 // identifies a build and not a browser. So detection cannot do it, and the page
 // asks instead: `said` below is a name the reader typed. That is better data
 // than any sniffing would produce, because the reader knows the answer.
-function runtimeLabel(userAgent: string): string {
+export function runtimeLabel(userAgent: string): string {
   let family = "other";
   let version = "";
   for (const [name, pattern] of FAMILIES) {
@@ -201,7 +208,12 @@ export default {
 
       const totals = await env.DB.prepare(
         `SELECT COUNT(*) AS rows, COUNT(DISTINCT runtime) AS runtimes,
-                SUM(CASE WHEN broken = 0 THEN 1 ELSE 0 END) AS passing
+                SUM(CASE WHEN broken = 0 THEN 1 ELSE 0 END) AS passing,
+                -- A row the family table could not place. Not a browser that is
+                -- unknown to the world — a gap in a hand-written list, and the
+                -- only signal that it needs extending. Silence here is how three
+                -- iOS browsers went unrecognised for a day.
+                SUM(CASE WHEN runtime LIKE 'other %' THEN 1 ELSE 0 END) AS unlabelled
            FROM reports`,
       ).first();
 
