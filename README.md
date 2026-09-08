@@ -30,10 +30,12 @@ runtime built on Chromium's ICU inherits the gap:
   measured here; if you use one, the demo page will tell you in a second. **Firefox is not affected** — measured on
   Firefox 155, every check passing on the same page where Chrome 152 fails
   eleven of twelve. That is what makes this easy to miss: the developer testing
-  in Firefox sees Icelandic and ships English to most of their visitors. Safari
-  is reported to ship full ICU too, and it is the one runtime here nobody has
-  measured — there is no Mac in this project. Open the demo page in Safari and
-  the verdict it prints is the measurement; a report either way is welcome.
+  in Firefox sees Icelandic and ships English to most of their visitors. **Safari
+  is not affected either** — measured 2026-09-08 by a reader who opened the demo
+  page on macOS and sent the result: all twelve checks pass. There is no Mac in
+  this project, so that report is the measurement; the browser version was not
+  captured, which is why the page now prints the user agent alongside its
+  verdict.
 - **Cloudflare Workers (workerd)** embeds the same ICU data, so a server-rendered
   page has the gap too. Upstream:
   [cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64), open

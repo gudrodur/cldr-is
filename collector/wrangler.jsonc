@@ -1,0 +1,19 @@
+{
+  // Collects what the demo page measured, from whoever opens it.
+  //
+  // The page has always computed a verdict; what was missing was any way for it
+  // to come back. The Safari result arrived as a screenshot in a chat, and its
+  // browser version is gone forever because nothing recorded it. This is that,
+  // without asking anyone for a screenshot.
+  "name": "intl-is-reports",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-08",
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "intl-is-reports",
+      "database_id": "e33cb614-eb6f-41fd-a4ad-6b39d9ecfb03"
+    }
+  ]
+}
