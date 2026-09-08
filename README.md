@@ -46,7 +46,7 @@ Measured 2026-09-05 on bare workerd and Chrome 152: for `is`,
 |  | polyfill the data | format manually |
 |---|---|---|
 | what it is | load formatjs's CLDR data for `is` | render Icelandic from a month table and a few string joins |
-| browser cost | **191,966 B gzip**, Chromium visitors only | **1,618 B gzip**, everyone |
+| browser cost | **191,966 B gzip**, Chromium visitors only | **2,774 B gzip**, everyone |
 | speed | ~800 ns with the formatter reused; **~28,000 ns** per `toLocaleString` call that passes an options object | ~80 ns |
 | covers collation | **no — no Collator polyfill exists** | yes |
 | covers arbitrary locales and options | yes | no, only the shapes you write |
@@ -86,8 +86,11 @@ The obvious move is to load the same data in the browser behind a
 `shouldPolyfill` gate. We built that ([`src/client.ts`](src/client.ts)), shipped
 it behind a flag, measured it, and **turned it off**: 191,966 B gzip, most of it
 the time-zone table `@formatjs/intl-datetimeformat` needs, to fix a handful of
-rendered dates. The manual formatters that replaced it are 1,618 B gzip for
-dates, numbers *and* collation — 119× smaller.
+rendered dates. The manual formatters that replaced it are 2,774 B gzip for
+dates, numbers *and* collation — 69× smaller. (That figure is every export of
+both modules, bundled with esbuild and gzipped, so it can be reproduced. An
+earlier README said 1,618 B, measured over only the subset one application
+imported, which nobody else could check.)
 
 They are also faster, but read that claim carefully rather than off the table
 above. `toLocaleString(locale, options)` costs ~28 µs because it builds a
@@ -173,13 +176,20 @@ import { compareIs } from "intl-is/collate";
 names.sort(compareIs);
 ```
 
-Pinned to Node full ICU over every ordered pair of the alphabet in both cases,
-253 Icelandic country names, the letters CLDR tailors away from their base
-letter (`ä ø å œ ß`), both the composed and decomposed spelling of every
-accented letter, ASCII punctuation, case, digits, and 500 000 random strings
-drawn from that set — **407,114 comparisons, zero divergences**.
+Pinned to Node full ICU over **every ordered pair of all 450 Latin letters**
+through Latin Extended-B — 202,500 comparisons, zero divergences — plus every
+pair of the Icelandic alphabet in both cases, 253 Icelandic country names, both
+the composed and decomposed spelling of every accented letter, ASCII
+punctuation, case, digits, and 500 000 random strings drawn from that set.
 
-Three details were read off ICU rather than reasoned about, and all three would
+The Latin coverage is not completeness for its own sake. `ł` used to fall
+outside the table, into a band below every letter, so **`Łukasz` and `Michał`
+sorted ahead of every Icelandic name in the list** — and Polish is the most
+widely spoken foreign language in Iceland. A list of names in the languages
+actually spoken here, Polish, Vietnamese, Turkish, Hungarian, Latvian, Czech and
+Norwegian among them, now comes out in exactly ICU's order.
+
+Four details were read off ICU rather than reasoned about, and all four would
 have been wrong from memory:
 
 - ICU orders punctuation by **DUCET category**, so `_` sorts before `-` despite
@@ -194,16 +204,30 @@ have been wrong from memory:
   string to it. Text really does arrive decomposed — macOS filesystems, some
   paste sources — so a comparator that skips this splits a name from its own
   other spelling.
+- ICU's secondary order for **combining marks is not code-point order**: U+0306
+  (breve) sorts before U+0302 (circumflex). There are 59 distinct ranks among
+  the 112 marks in U+0300–U+036F, the order is the same whatever letter carries
+  them, and the marks compare **position by position** rather than as a set — so
+  `ǡ` (a + U+0307 + U+0304) sorts *before* `ā` (a + U+0304). Adding the code
+  points together, which is the obvious shortcut, makes `ô` and `ŏ`
+  interchangeable.
 
-Not claimed: exact ICU order for characters outside that set — CJK, emoji,
-unlisted symbols — which sort by code point instead. What *is* guaranteed for
-them is that two different characters never compare equal, because a caller
-reads 0 as "these are the same" and drops one of them.
+Not claimed: exact ICU order for characters outside the Latin script — Greek,
+Cyrillic, Hebrew, CJK, emoji, unlisted symbols. Two things *are* guaranteed for
+them. Two different characters never compare equal, because a caller reads 0 as
+"these are the same" and drops one of them. And an unlisted **letter** sorts
+after the alphabet rather than before it: both are wrong against ICU, but a name
+in a script this table does not cover belongs at the bottom of a member list,
+not ahead of `Aðalheiður`. That choice is measured, not assumed — against ICU
+over assigned characters it diverges on 18.5% of pairs where one shared band
+diverged on 53.5%, and on Latin-plus-CJK-plus-digits 1.0% against 37.9%. It is
+worse in exactly one place, a uniform draw over the whole code space, which is
+mostly *unassigned* code points and therefore not text.
 
-It is about **2.4× slower than a native `Intl.Collator`** (18 ms versus 7 ms
-sorting 10 000 names). That is the honest cost of being correct on a runtime
-whose collator is not, and it is the one measurement here that does not favour
-this approach.
+It is about **2.4× slower than a native `Intl.Collator`** (17 ms versus 7 ms
+sorting 10 000 names) and the tables above cost **774 B gzip** on top of what it
+was before them. Those are the two measurements here that do not favour this
+approach, and they buy the whole Latin script.
 
 ## The trap next door: date-fns is a separate axis
 

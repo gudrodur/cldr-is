@@ -89,7 +89,9 @@ describe("compareIs", () => {
     // splits a name from its own other spelling AND, before the fix, reported two
     // DIFFERENT decomposed letters as equal, because their combining marks shared
     // a fallback weight.
-    for (const ch of Array.from("\u00e1\u00e9\u00ed\u00f3\u00fa\u00fd\u00e4\u00f6\u00e5\u00f8\u00fc\u00e7\u00f1\u00c1\u00d3\u00dc")) {
+    for (const ch of Array.from(
+      "\u00e1\u00e9\u00ed\u00f3\u00fa\u00fd\u00e4\u00f6\u00e5\u00f8\u00fc\u00e7\u00f1\u00c1\u00d3\u00dc",
+    )) {
       expect(sign(compareIs(ch, ch.normalize("NFD"))), `${ch} vs NFD`).toBe(0);
     }
     for (const name of ["\u00c1sta", "\u00de\u00f3r\u00f0ur", "\u00c6var", "\u00d6rn"]) {
@@ -107,13 +109,36 @@ describe("compareIs", () => {
     // a secondary difference outranks an earlier case difference. A tertiary
     // marker gets that pair backwards, so this test pins the ordering that
     // distinguishes the two models rather than only the easy "\u00df" vs "ss" pair.
-    const family = ["ss", "sS", "Ss", "SS", "\u00df", "\u1e9e", "oe", "oE", "Oe", "OE", "\u0153", "\u0152"];
+    const family = [
+      "ss",
+      "sS",
+      "Ss",
+      "SS",
+      "\u00df",
+      "\u1e9e",
+      "oe",
+      "oE",
+      "Oe",
+      "OE",
+      "\u0153",
+      "\u0152",
+    ];
     expect(family.slice().sort(compareIs)).toEqual(family.slice().sort(icu));
-    const straddling = ["a\u00df", "Ass", "\u00dfa", "ssA", "Stra\u00dfe", "Strasse", "STRASSE", "STRA\u1e9eE"];
+    const straddling = [
+      "a\u00df",
+      "Ass",
+      "\u00dfa",
+      "ssA",
+      "Stra\u00dfe",
+      "Strasse",
+      "STRASSE",
+      "STRA\u1e9eE",
+    ];
     expect(straddling.slice().sort(compareIs)).toEqual(straddling.slice().sort(icu));
-    expect(sign(compareIs("a\u00df", "Ass")), "secondary must outrank the earlier case difference").toBe(
-      sign(icu("a\u00df", "Ass")),
-    );
+    expect(
+      sign(compareIs("a\u00df", "Ass")),
+      "secondary must outrank the earlier case difference",
+    ).toBe(sign(icu("a\u00df", "Ass")));
   });
 
   it("never reports two different characters as equal", () => {
@@ -123,22 +148,162 @@ describe("compareIs", () => {
     // the fallback weight into a 100-wide band, so every character above U+0062 —
     // all of CJK, emoji, symbols and lone surrogates — compared equal to every
     // other, and a sort of them returned its own input order.
-    const outside = ["\u4e2d", "\u6587", "\u65e5", "\ud83d\ude00", "\ud83d\ude01", "\u00a7", "\u00b6", "\u20ac", "\u00a3", "\u2192", "\u03b1", "\u0416", "\u05d0", "\ud800", "\udc00"];
+    const outside = [
+      "\u4e2d",
+      "\u6587",
+      "\u65e5",
+      "\ud83d\ude00",
+      "\ud83d\ude01",
+      "\u00a7",
+      "\u00b6",
+      "\u20ac",
+      "\u00a3",
+      "\u2192",
+      "\u03b1",
+      "\u0416",
+      "\u05d0",
+      "\ud800",
+      "\udc00",
+    ];
     for (const a of outside) {
       for (const b of outside) {
         if (a === b) continue;
         expect(sign(compareIs(a, b)), `${JSON.stringify(a)} vs ${JSON.stringify(b)}`).not.toBe(0);
       }
     }
-    // And the order it does give is the documented one: by code POINT, stable
-    // whichever way the input happened to be arranged. Note that this is not
-    // JavaScript's own `<`, which compares UTF-16 code units and therefore puts
-    // an astral character before a lone low surrogate.
-    const byCodePoint = outside
-      .slice()
-      .sort((a, b) => a.codePointAt(0)! - b.codePointAt(0)!);
-    expect(outside.slice().sort(compareIs)).toEqual(byCodePoint);
-    expect(outside.slice().reverse().sort(compareIs)).toEqual(byCodePoint);
+    // Within a band the order is by code POINT, stable whichever way the input
+    // happened to be arranged. Note this is not JavaScript's own `<`, which
+    // compares UTF-16 code units and puts an astral character before a lone low
+    // surrogate. There are two bands on purpose — see the next test.
+    for (const band of [
+      outside.filter((ch) => /\p{L}/u.test(ch)),
+      outside.filter((ch) => !/\p{L}/u.test(ch)),
+    ]) {
+      const byCodePoint = band.slice().sort((a, b) => a.codePointAt(0)! - b.codePointAt(0)!);
+      expect(band.slice().sort(compareIs)).toEqual(byCodePoint);
+      expect(band.slice().reverse().sort(compareIs)).toEqual(byCodePoint);
+    }
+  });
+
+  it("puts an unlisted LETTER after the alphabet, never before it", () => {
+    // Both placements are wrong against ICU, but they are not equally wrong in
+    // a member list. A name in a script this table does not cover belongs at
+    // the bottom, not ahead of "Aðalheiður". Measured over assigned characters
+    // this also agrees with ICU far more often than one shared band did
+    // (18.5% divergent vs 53.5%; on Latin-plus-CJK-plus-digits, 1.0% vs 37.9%).
+    for (const foreign of ["中", "Ж", "א", "α", "ᚠ"]) {
+      expect(sign(compareIs(foreign, "Aðalheiður")), foreign).toBe(1);
+      expect(sign(compareIs(foreign, "Örn")), foreign).toBe(1);
+    }
+    // Symbols and emoji keep the low band, which is the side ICU has them on.
+    for (const symbol of ["§", "€", "😀"]) {
+      expect(sign(compareIs(symbol, "a")), symbol).toBe(sign(icu(symbol, "a")));
+    }
+  });
+
+  it("agrees with ICU on EVERY ordered pair of Latin letters", () => {
+    // The Icelandic alphabet is not the whole of what a member name contains.
+    // Polish is the most widely spoken foreign language in Iceland, and before
+    // the letter tables "Łukasz" sorted ahead of every Icelandic name because
+    // "ł" fell into the fallback band. This walks all 450 Latin letters through
+    // Latin Extended-B against the oracle.
+    const letters: string[] = [];
+    for (const [from, to] of [
+      [0x41, 0x5a],
+      [0x61, 0x7a],
+      [0xc0, 0xff],
+      [0x100, 0x24f],
+    ]) {
+      for (let cp = from!; cp <= to!; cp++) {
+        const ch = String.fromCodePoint(cp);
+        if (/\p{L}/u.test(ch)) letters.push(ch);
+      }
+    }
+    expect(letters.length).toBeGreaterThan(440);
+    for (const a of letters) {
+      for (const b of letters) {
+        expect(sign(compareIs(a, b)), `${a} (U+${a.codePointAt(0)!.toString(16)}) vs ${b}`).toBe(
+          sign(icu(a, b)),
+        );
+      }
+    }
+  });
+
+  it("sorts a real multilingual member list exactly as ICU does", () => {
+    // The languages actually spoken in Iceland, not a synthetic corpus.
+    const names = [
+      "Łukasz",
+      "Michał",
+      "Wojciech",
+      "Þórður",
+      "Ævar",
+      "Örn",
+      "Ásta",
+      "Ólafur",
+      "Aðalheiður",
+      "Einar",
+      "Úlfur",
+      "Ýrr",
+      "Ína",
+      "Nguyễn",
+      "Đặng",
+      "Müller",
+      "Bjørn",
+      "Åse",
+      "Ólöf",
+      "Šimon",
+      "Żaneta",
+      "İbrahim",
+      "Işık",
+      "Márta",
+      "Erzsébet",
+      "Kļaviņš",
+      "Ģirts",
+    ];
+    expect(names.slice().sort(compareIs)).toEqual(names.slice().sort(icu));
+    // The one that motivated the table: not first any more.
+    expect(names.slice().sort(compareIs)[0]).toBe("Aðalheiður");
+  });
+
+  it("re-derives its three tables from ICU, so a CLDR change fails here", () => {
+    // MARK_ORDER, VARIANTS and EXTRA_LETTERS were read off ICU rather than
+    // reasoned about. That is only safe if something notices when ICU moves.
+    const base = new Intl.Collator("is", { sensitivity: "base" });
+    const alphabet = Array.from(IS_ALPHABET);
+
+    // 1. The combining marks are in ICU's secondary order, which is NOT code
+    //    point order: U+0306 sorts before U+0302.
+    const marks = Array.from({ length: 0x70 }, (_, i) => 0x300 + i);
+    const ranked = marks.slice().sort((x, y) => {
+      const probe = (m: number) => "n" + String.fromCodePoint(m);
+      return icu(probe(x), probe(y)) || x - y;
+    });
+    const firstFive = ranked.slice(0, 5);
+    expect(firstFive, "ICU's mark order moved — re-run the generator").toEqual([
+      0x34f, 0x332, 0x313, 0x343, 0x314,
+    ]);
+    expect(sign(icu("n\u0306", "n\u0302")), "breve before circumflex, not code-point order").toBe(
+      -1,
+    );
+
+    // 2. Every letter the tables place is still placed there by ICU.
+    for (const [variant, letter] of [
+      ["ł", "l"],
+      ["đ", "d"],
+      ["ħ", "h"],
+      ["ſ", "s"],
+      ["ä", "æ"],
+      ["ø", "ö"],
+    ]) {
+      expect(base.compare(variant!, letter!), `${variant} shares ${letter}'s primary`).toBe(0);
+    }
+    // 3. And every letter with its own primary still has one.
+    for (const extra of ["ı", "ŋ", "ĸ", "ŧ", "å"]) {
+      expect(
+        alphabet.some((l) => base.compare(extra, l) === 0),
+        `${extra} has its own primary`,
+      ).toBe(false);
+    }
   });
 
   it("agrees with ICU on 20 000 pseudo-random pairs, decomposed forms included", () => {

@@ -32,7 +32,7 @@ locale because workerd's ICU has no collation tailoring at all.
 
 > **Read this section with the 2026-09-07 measurements below.** The browser half
 > below was built, shipped behind a flag and then **turned off**: 191,966 B gzip
-> was not worth it against 1,618 B of manual formatters. The server half is still
+> was not worth it against 2,774 B of manual formatters. The server half is still
 > running. This table is kept because the numbers are what settled the question.
 
 
@@ -70,10 +70,17 @@ everything the application needs to render Icelandic without `Intl`.
 
 | | raw | gzip |
 |---|---|---|
-| manual formatters + collator | 3,933 B | **1,618 B** |
+| manual formatters + collator, every export | 6,770 B | **2,774 B** |
 | formatjs `is` lazy chunk (dates + numbers only, **no collation**) | 1,137,104 B | **191,966 B** |
 
-119× smaller, and it is the only one of the two that covers sorting.
+69x smaller, and it is the only one of the two that covers sorting.
+
+The manual figure was **1,618 B until 2026-09-08** and moved for two reasons, one
+honest bookkeeping and one real. The bookkeeping: 1,618 B was measured over the
+subset of exports one application imported, which nobody else could reproduce;
+the number above is every export of both modules, bundled and gzipped, so it can
+be. The real one: the collation tables added that day cost **774 B gzip**, and
+they buy correct order for the whole Latin script — see below.
 
 One caveat in the polyfill's favour, and it is real: the 191,966 B is behind a
 `shouldPolyfill` gate, so Firefox and Safari visitors download none of it, while
@@ -144,7 +151,41 @@ Manual output pinned against Node full ICU, character for character:
 | date shapes vs `toLocale*` with the call sites' own options, in `Atlantic/Reykjavik`, `Europe/Copenhagen`, `America/New_York` | 147 | **0** |
 | collation vs `Intl.Collator("is")`, alphabet pairs + 253 country names + tailored letters + punctuation | 243,049 | **0** |
 | collation vs `Intl.Collator("is")`, every pair over the covered set: alphabet both cases, NFC/NFD spellings, the `ß`/`ẞ`/`œ`/`Œ` expansion families, digits, punctuation, and 500 000 random strings drawn from that set | 407,114 | **0** |
+| collation vs `Intl.Collator("is")`, **every ordered pair of all 450 Latin letters** through Latin Extended-B | 202,500 | **0** |
+| collation, a name list in the languages actually spoken in Iceland (Polish, Vietnamese, Turkish, Hungarian, Latvian, Czech, Norwegian, German) | 27 names | **identical order** |
 | `formatIsNumber` vs `toLocaleString("is-IS")` across the whole double range, exponents −320 to +320, plus the non-finite values | 900,028 | **0** |
+
+### What the Latin row cost, and why it was worth it
+
+The letter tables were added on 2026-09-08 after a question about `ö` versus
+`õ`. Those two were already right. What the measurement found instead was that
+**every Latin letter outside the table fell into the fallback band, below every
+letter** — so `Łukasz` and `Michał` sorted ahead of every Icelandic name, and
+Polish is the most widely spoken foreign language in Iceland. The same pass
+found that ICU's secondary order for combining marks is not code-point order and
+that marks compare position by position, which had `ô`/`ŏ` and `ǡ`/`ā` wrong.
+
+| | before | after |
+|---|---|---|
+| Latin letter pairs matching ICU | 190,658 of 202,500 | **202,500 of 202,500** |
+| collator alone, gzip | 952 B | 1,683 B |
+| 10 000 names sorted | 17.8 ms | 16.8 ms |
+
+The fallback for characters the tables do not reach was changed in the same
+pass, and the effect was measured both ways over fixed pools rather than
+assumed:
+
+| pool | unlisted letters ABOVE the alphabet | one shared low band |
+|---|---|---|
+| assigned characters U+0020–U+2FFF | **18.5%** diverge | 53.5% |
+| Latin + CJK + digits + punctuation | **1.0%** | 37.9% |
+| Greek + Cyrillic | 14.1% | 14.1% |
+| CJK block | 1.3% | 1.3% |
+| uniform draw over the whole code space | 23.1% | **2.0%** |
+
+The last row is the honest cost and the reason to state the method: a uniform
+draw is mostly *unassigned* code points, where ICU's implicit weights happen to
+sit low. Optimising for that would be optimising for input that is not text.
 
 The second collation row replaced a "200 000 random strings over the whole
 character set — 0 divergences" line on 2026-09-08, because that line was not
