@@ -43,9 +43,11 @@ runtime built on Chromium's ICU inherits the gap:
   present. **Opera has since been measured — on Android, where it has Icelandic**
   (below); Opera on the desktop and Brave anywhere are still unmeasured, and the
   Android result is a reason to stop assuming rather than to assume the other
-  way. If you use one, the demo page will tell you in a second. **Firefox is not affected** — measured on
-  Firefox 155, every check passing on the same page where Chrome 152 fails
-  eleven of twelve. That is what makes this easy to miss: the developer testing
+  way. If you use one, the demo page will tell you in a second. **Firefox is not affected** — every
+  Gecko row reported so far passes all twelve, across Linux, Windows, macOS and
+  Android and across three majors, on the same page where Chrome 152 fails
+  eleven of twelve. (The `Firefox … / iOS` row is not one of them: it is WebKit,
+  see below.) That is what makes this easy to miss: the developer testing
   in Firefox sees Icelandic and ships English to most of their visitors. **Safari
   is not affected either** — Safari 26 on macOS passes all twelve checks,
   reported through the page on 2026-09-08. On iOS a WebKit row passes all twelve
