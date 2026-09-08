@@ -181,11 +181,47 @@ Every number in this README, with its method and date:
 (`npm run probe`, needs `wrangler` on PATH), so the gap can be re-checked per
 workerd release.
 
-## The real fix is upstream
+## Do not wait for the upstream fix
 
-This is a workaround. The fix is Chromium including `is` in its ICU build, and
-Cloudflare shipping full ICU (workerd#64). If you can help either along, do that
-instead of installing this.
+This is a workaround, and the honest reading of the evidence is that it is a
+**permanent** one. An earlier version of this README said "if you can help
+either along, do that instead of installing this". That was optimism, not a
+reading of the threads.
+
+**Chromium's exclusion is policy, not an oversight.**
+[`filters/common.json`](https://chromium.googlesource.com/chromium/deps/icu/+/refs/heads/main/filters/common.json)
+says *"Keep only the minimum locale data for non-UI languages"*, and the
+qualifying condition is whether Chrome's own UI is translated into the language
+— not whether the language is used on the web. Icelandic does not qualify and is
+not going to start qualifying because a website asked.
+
+**workerd#64 is not a refusal. It is silence, which is worse.**
+[cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64) was
+opened 2022-09-30. The maintainer was *receptive* — "annoying but maybe not a
+huge deal for a server binary" — and the reporter went and measured it: swapping
+in the full `icudt71l.dat` took the binary from 63 MB to 82 MB, the data from
+~10 MB to ~30 MB, and nothing crashed. Five comments over five days, and then
+**nothing: no comment, no label, no assignee, for 1,434 days** as of 2026-09-08.
+A willing maintainer and four years of silence is a worse signal than a "no",
+because a "no" can be argued with.
+
+**Mozilla went the other way and stopped, which is the interesting part.**
+[Bug 1612379](https://bugzilla.mozilla.org/show_bug.cgi?id=1612379) proposed
+trimming Firefox from 459 locales to roughly 100–150 — about 1.8 MB — and it
+stalled on the principle that dropping languages with millions of speakers is
+not acceptable, and that once Firefox's intl data is available to the Web it
+should remain available. Deprioritised P2 → P5, to revisit "once we have ICU4X".
+
+That is the whole thing in one comparison: two vendors looked at the same
+1–2 MB and reached opposite conclusions, and that is why your Icelandic dates
+work in Firefox and not in Chrome. It is a values split, not a technical
+inevitability — and a values split does not get resolved by filing a bug.
+
+The one thing worth watching is **ICU4X**, which both threads independently
+point at: the workerd reporter ("I'm starting to understand why the Unicode
+Consortium is pushing ICU4X") and Mozilla's own resolution. Data loaded on
+demand per locale is the shape that makes this question go away, rather than the
+shape that makes someone choose which languages are worth 1.8 MB.
 
 ## License
 
