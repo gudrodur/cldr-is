@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Does your browser speak Icelandic? — intl-is</title>
+<meta name="description" content="A live test: Chromium-based browsers render Icelandic dates, numbers and sort order in English. This page checks yours and shows what it should say.">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fbfaf8; --fg: #1b1b1f; --muted: #5c5c66; --line: #e3e0da;
+    --card: #fff; --bad: #b3261e; --good: #146c2e; --badbg: #fdeceb; --goodbg: #e9f5ec;
+    --code: #f4f2ee;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16161a; --fg:#e8e6e3; --muted:#a0a0ab; --line:#2e2e36;
+            --card:#1e1e24; --bad:#f2b8b5; --good:#8fd6a3; --badbg:#3a1f1e; --goodbg:#1d3324;
+            --code:#26262e; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width: 54rem; margin: 0 auto; padding: 2rem 1.25rem 6rem; }
+  h1 { font-size: clamp(1.7rem, 4vw, 2.4rem); line-height:1.2; margin:0 0 .5rem; letter-spacing:-.02em; }
+  h2 { font-size:1.3rem; margin:3rem 0 .75rem; letter-spacing:-.01em; }
+  h3 { font-size:1.02rem; margin:1.75rem 0 .5rem; }
+  p, li { color:var(--fg); }
+  .lede { font-size:1.1rem; color:var(--muted); margin:0 0 2rem; }
+  code, kbd { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.86em;
+              background:var(--code); padding:.12em .35em; border-radius:4px; }
+  pre { background:var(--code); padding:1rem; border-radius:8px; overflow-x:auto; }
+  pre code { background:none; padding:0; }
+  .verdict { border-radius:12px; padding:1.25rem 1.4rem; margin:0 0 2rem; border:1px solid var(--line); }
+  .verdict.broken { background:var(--badbg); border-color:color-mix(in srgb, var(--bad) 35%, transparent); }
+  .verdict.fine   { background:var(--goodbg); border-color:color-mix(in srgb, var(--good) 35%, transparent); }
+  .verdict strong { font-size:1.15rem; display:block; margin-bottom:.35rem; }
+  .verdict .why { color:var(--muted); font-size:.94rem; }
+  table { width:100%; border-collapse:collapse; margin:.5rem 0 1rem; font-size:.94rem; }
+  th, td { text-align:left; padding:.55rem .6rem; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { font-weight:600; color:var(--muted); font-size:.82rem; text-transform:uppercase; letter-spacing:.04em; }
+  td.yours { font-weight:600; }
+  td.yours.bad { color:var(--bad); }
+  td.yours.ok  { color:var(--good); }
+  .tag { display:inline-block; font-size:.75rem; padding:.1rem .45rem; border-radius:999px;
+         border:1px solid var(--line); color:var(--muted); }
+  .note { color:var(--muted); font-size:.84rem; line-height:1.5; margin-top:.35rem; max-width:34rem; }
+  .scroll { overflow-x:auto; }
+  .cols { display:grid; gap:1rem; grid-template-columns:1fr; }
+  @media (min-width:44rem) { .cols { grid-template-columns:1fr 1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:1rem 1.1rem; }
+  .card h4 { margin:0 0 .5rem; font-size:.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  ol.names { margin:0; padding-left:1.4rem; }
+  ol.names li { padding:.1rem 0; }
+  ol.names li.moved { font-weight:600; }
+  footer { margin-top:4rem; padding-top:1.5rem; border-top:1px solid var(--line);
+           color:var(--muted); font-size:.9rem; }
+  a { color:inherit; }
+  .muted { color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Does your browser speak Icelandic?</h1>
+<p class="lede">
+  Chromium keeps only “the minimum locale data for non-UI languages”, and Icelandic
+  is one of them. This page runs the checks in <em>your</em> browser, right now, and
+  compares the answers with what CLDR actually says.
+</p>
+
+<div class="verdict" id="verdict">
+  <strong id="verdict-title">Checking…</strong>
+  <span class="why" id="verdict-why"></span>
+</div>
+
+<h2>Every case, live</h2>
+<p>
+  The middle column is what your browser just returned. The right column is what
+  the same expression returns on a runtime with full ICU data — generated from
+  Node, not typed in by hand.
+</p>
+
+<div class="scroll">
+<table id="cases">
+  <thead>
+    <tr><th>What</th><th>Your browser</th><th>CLDR (correct)</th></tr>
+  </thead>
+  <tbody></tbody>
+</table>
+</div>
+<p class="muted" id="provenance"></p>
+
+<h2 id="sorting">Sorting is the one no polyfill can fix</h2>
+<p>
+  <code>á é í ó ú ý ð þ æ ö</code> are letters in their own right in Icelandic, not
+  accented variants. A fallback collation treats them as variants, so
+  <strong>Ævar</strong> lands near the top instead of second-to-last and
+  <strong>Þórður</strong> sorts among the T’s. There is no
+  <code>Intl.Collator</code> polyfill — formatjs does not ship one — so unlike
+  dates and numbers, this cannot be fixed by loading data.
+</p>
+
+<div class="cols">
+  <div class="card">
+    <h4>Your browser · <span id="sort-label">localeCompare(a, b, "is")</span></h4>
+    <ol class="names" id="sort-yours"></ol>
+  </div>
+  <div class="card">
+    <h4>Icelandic order</h4>
+    <ol class="names" id="sort-cldr"></ol>
+  </div>
+</div>
+
+<h2>The trap next door: date pickers don’t use Intl</h2>
+<p>
+  A polyfill fixes <code>Intl</code>. It does not fix a library that never used it.
+  <a href="https://daypicker.dev/">react-day-picker</a> — and therefore every
+  shadcn/ui calendar — localises through <strong>date-fns</strong>, so a fully
+  polyfilled page still renders <code>October 2026</code> and
+  <code>Su Mo Tu We Th Fr Sa</code> until you pass a locale:
+</p>
+<pre><code>import { is } from "date-fns/locale/is";
+&lt;DayPicker locale={is} /&gt;   // október, Má Þr Mi Fi Fö La Su, Monday-first</code></pre>
+<p>
+  And once you do, check what you render beside it: date-fns’s abbreviated
+  Icelandic months are <em>not</em> CLDR’s. <span id="date-fns-count">Several</span>
+  of twelve differ — read off <code id="date-fns-version">date-fns</code> by
+  <code>scripts/measure.mjs</code>, not typed here, so a release that changes
+  them changes this sentence too.
+</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>Source</th><th>Abbreviated months</th></tr></thead>
+  <tbody id="date-fns"></tbody>
+</table>
+</div>
+
+<h2>What to do about it</h2>
+<h3>On the server: load the data</h3>
+<p>
+  Cloudflare Workers embeds the same trimmed ICU, so a server-rendered page has
+  the gap too. There the polyfill earns its size — loaded once per isolate, not
+  per visitor, and it fixes every locale at once.
+</p>
+<pre><code>import "intl-is/server";   // first import in the worker entry</code></pre>
+<p class="muted">
+  It must be formatjs’s <code>polyfill-force</code>, not <code>polyfill</code>: the
+  runtime <em>has</em> an <code>Intl.DateTimeFormat</code>, it just answers in
+  English, so the conditional polyfill decides nothing is wrong. And
+  <code>polyfill-force</code> replaces the global for <em>every</em> locale — load
+  data for all the languages you serve, or they regress.
+</p>
+
+<h3>In the browser: format it yourself</h3>
+<p>
+  We shipped the browser polyfill behind a flag, measured it, and turned it off.
+  It is <strong>191,966 B gzip</strong>, most of it a time-zone table, against
+  <strong>1,618 B</strong> for manual formatters that also cover sorting. Copy
+  them or import them — both are fine:
+</p>
+<pre><code>import { formatIsDate, formatIsNumber } from "intl-is/format";
+import { compareIs } from "intl-is/collate";</code></pre>
+
+<h3>Then pin whatever you write to Node</h3>
+<p>
+  This is the part that matters more than the code. <strong>The browser you are
+  developing in cannot tell you whether your Icelandic is right</strong> — it is the
+  broken one. Node still has the data, so Node is the oracle:
+</p>
+<pre><code>expect(formatIsDate(d)).toBe(d.toLocaleDateString("is-IS", { …options }));</code></pre>
+<p>
+  Write that once per shape and your hand-written month table stops being a guess.
+  Two ways to get the test itself wrong: do not pin <code>timeZone: "UTC"</code> on
+  the Intl side unless your call site passes one (it makes the equality true by
+  construction — it hid a real bug from us for a review round), and run the suite
+  in more than one time zone.
+</p>
+
+<h2>Is this ever going to be fixed upstream?</h2>
+<p>
+  Plan as if not. <a href="https://github.com/cloudflare/workerd/issues/64">workerd#64</a>
+  has been open since 2022; the maintainer was <em>receptive</em> and the reporter
+  measured the full-ICU embed at 63 MB → 82 MB, then it went quiet — no comment,
+  no label, no assignee for over 1,400 days. Chromium’s exclusion is policy keyed
+  to whether Chrome’s own UI is translated into the language, which Icelandic is
+  not. Mozilla considered the same trim for Firefox
+  (<a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1612379">bug 1612379</a>)
+  and declined on principle — which is exactly why the checks above pass in Firefox
+  and fail in Chrome. Two vendors, the same 1–2 MB, opposite calls. That is a
+  values split, and it does not resolve by filing a bug.
+</p>
+
+<footer>
+  <p>
+    <a href="https://github.com/gudrodur/intl-is">gudrodur/intl-is</a> · MIT ·
+    a workaround, and the measurements behind it.
+    Firefox, Safari and Node ship full ICU and are unaffected.
+  </p>
+</footer>
+
+</main>
+
+<script>
+// Deliberately NOT a module. Opened straight off the disk, the module below
+// never runs at all — the browser blocks its `import` over file:// before a
+// single line of it executes, so an error handler inside it can never fire and
+// the page sits on "Checking…" with nothing to read. This runs first and says
+// what happened.
+if (location.protocol === "file:") {
+  var box = document.getElementById("verdict");
+  box.className = "verdict broken";
+  document.getElementById("verdict-title").textContent =
+    "This page cannot run from a file:// URL";
+  document.getElementById("verdict-why").innerHTML =
+    "It has to load <code>cases.js</code> and <code>reference.json</code> beside it, " +
+    "and the browser blocks that for a page opened off the disk. Serve the folder " +
+    "instead — <code>npx serve docs</code>, then open " +
+    "<code>http://localhost:3000</code> — or read the published page.";
+}
+</script>
+
+<script type="module">
+import { CASES, sourceOf } from "./cases.js";
+
+// The correct answers, measured under Node full ICU by scripts/measure.mjs.
+// The checks themselves come from cases.js — the same file the generator ran,
+// so the two sides of every row cannot drift apart.
+let ref;
+try {
+  const response = await fetch("./reference.json");
+  if (!response.ok) throw new Error(`reference.json: HTTP ${response.status}`);
+  ref = await response.json();
+} catch (error) {
+  // Opened straight off the disk, this fetch is blocked by CORS and the page
+  // would otherwise sit on "Checking…" forever with nothing to read. Say what
+  // happened instead.
+  const box = document.getElementById("verdict");
+  box.className = "verdict broken";
+  document.getElementById("verdict-title").textContent = "This page could not load its data";
+  document.getElementById("verdict-why").innerHTML =
+    `<code>reference.json</code> did not load: ${String(error.message ?? error)}. ` +
+    `If you opened this file from disk, that is why — the browser blocks it over ` +
+    `<code>file://</code>. Serve the folder instead ` +
+    `(<code>npx serve docs</code>), or read it at the published page.`;
+  throw error;
+}
+const byId = new Map(ref.cases.map((c) => [c.id, c]));
+
+const tbody = document.querySelector("#cases tbody");
+const escape = (t) => t.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[ch]);
+const short = (csv) => csv.split(", ").slice(0, 3).join(", ") + ", …";
+
+let broken = 0;
+let checked = 0;
+const stale = [];
+let sortYours = null;
+
+for (const c of CASES) {
+  const expected = byId.get(c.id);
+  if (!expected) {
+    // reference.json is stale — there is no verified answer for this check, so
+    // it cannot be shown. Say so rather than quietly rendering a shorter table
+    // than the verdict counts. (test/reference.test.ts fails CI on this, so it
+    // should never reach a published page.)
+    stale.push(c.label);
+    continue;
+  }
+  let mine;
+  try { mine = c.run(); } catch (e) { mine = "threw: " + e.message; }
+  const ok = mine === expected.cldr;
+  checked++;
+  if (!ok) broken++;
+  if (c.id === "sort") sortYours = mine;
+
+  const isList = c.kind === "list";
+  const tr = document.createElement("tr");
+
+  const what = document.createElement("td");
+  what.innerHTML =
+    `${escape(c.label)}<br><code>${escape(sourceOf(c))}</code>` +
+    (isList ? ` <a href="#sorting" class="tag">full list below</a>` : "") +
+    (c.note && expected.extra ? `<div class="note">${c.note(expected.extra)}</div>` : "");
+
+  const yours = document.createElement("td");
+  yours.className = "yours " + (ok ? "ok" : "bad");
+  yours.textContent = isList ? short(mine) : mine;
+
+  const cldr = document.createElement("td");
+  cldr.textContent = isList ? short(expected.cldr) : expected.cldr;
+
+  tr.append(what, yours, cldr);
+  tbody.append(tr);
+}
+
+// The sorting comparison in full, side by side.
+const yoursList = (sortYours ?? "").split(", ");
+const correctList = byId.get("sort").cldr.split(", ");
+for (const [id, list] of [["sort-yours", yoursList], ["sort-cldr", correctList]]) {
+  const ol = document.getElementById(id);
+  list.forEach((name, i) => {
+    const li = document.createElement("li");
+    li.textContent = name;
+    if (yoursList[i] !== correctList[i]) li.className = "moved";
+    ol.append(li);
+  });
+}
+
+const resolved = new Intl.DateTimeFormat("is").resolvedOptions().locale;
+const box = document.getElementById("verdict");
+const title = document.getElementById("verdict-title");
+const why = document.getElementById("verdict-why");
+
+if (broken === 0) {
+  box.className = "verdict fine";
+  title.textContent = "Your browser has the Icelandic data.";
+  why.innerHTML =
+    `All ${checked} checks match CLDR, and <code>Intl</code> resolves <code>is</code> ` +
+    `to <code>${resolved}</code>. Firefox, Safari and Node ship full ICU. Your ` +
+    `visitors on Chrome and Edge are not so lucky — which is the point of this ` +
+    `page: from here, the bug is invisible.`;
+} else {
+  box.className = "verdict broken";
+  title.textContent =
+    `Your browser is missing Icelandic — ${broken} of ${checked} checks are wrong.`;
+  why.innerHTML =
+    `<code>Intl.DateTimeFormat("is").resolvedOptions().locale</code> returns ` +
+    `<code>${resolved}</code>, so every Icelandic date, number and sort below falls ` +
+    `back to English. Nothing is misconfigured; the data is not in the build.`;
+}
+
+// The date-fns comparison, rendered from the same generated file rather than
+// written into the markup — it is a claim about a package that can change it.
+{
+  const { monthsShort, cldrMonthsShort, differing, version } = ref.dateFns;
+  const differs = new Set(differing);
+  const row = (source, months) =>
+    `<tr><td>${source}</td><td>` +
+    months.map((m, i) => (differs.has(i) ? `<strong>${m}</strong>` : m)).join(" ") +
+    `</td></tr>`;
+  document.getElementById("date-fns").innerHTML =
+    row("date-fns", monthsShort) + row("CLDR", cldrMonthsShort);
+  document.getElementById("date-fns-count").textContent =
+    ["None", "One", "Two", "Three", "Four", "Five", "Six"][differing.length] ?? differing.length;
+  document.getElementById("date-fns-version").textContent = `date-fns ${version}`;
+}
+
+if (stale.length > 0) {
+  const warning = document.createElement("p");
+  warning.className = "note";
+  warning.innerHTML =
+    `<strong>${stale.length} check${stale.length === 1 ? "" : "s"} not shown</strong> ` +
+    `(${stale.map((label) => label).join(", ")}): <code>reference.json</code> has no ` +
+    `verified answer for ${stale.length === 1 ? "it" : "them"}, so nothing here would be ` +
+    `an honest comparison. Run <code>npm run measure</code> and commit the result.`;
+  document.querySelector("#cases").before(warning);
+}
+
+document.getElementById("provenance").textContent =
+  `Correct answers generated with ${ref.generatedBy} on ${ref.generatedAt}, for the ` +
+  `instant ${ref.instant}. The checks themselves are shared with the generator, ` +
+  `so both sides run the same code.`;
+</script>
+</body>
+</html>

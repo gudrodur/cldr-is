@@ -2,7 +2,7 @@
   "name": "intl-is",
   "version": "0.0.0",
   "private": true,
-  "description": "Icelandic locale data and collation for JavaScript on runtimes that ship without it (Chromium-based browsers, Cloudflare Workers). Not published yet.",
+  "description": "Icelandic dates, numbers and collation for JavaScript on runtimes that ship without the locale data (Chromium-based browsers, Cloudflare Workers). A recipe as much as a package. Not published yet.",
   "license": "MIT",
   "author": "Guðröður Atli Jónsson",
   "repository": "github:gudrodur/intl-is",
@@ -14,7 +14,8 @@
   "exports": {
     "./server": "./src/server.ts",
     "./client": "./src/client.ts",
-    "./collate": "./src/collate.ts"
+    "./collate": "./src/collate.ts",
+    "./format": "./src/format.ts"
   },
   "files": [
     "src",
@@ -24,7 +25,8 @@
   "scripts": {
     "probe": "node scripts/probe-worker-intl.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "measure": "node scripts/measure.mjs"
   },
   "dependencies": {
     "@formatjs/intl-datetimeformat": "7.6.1",
@@ -33,6 +35,7 @@
     "@formatjs/intl-relativetimeformat": "12.3.13"
   },
   "devDependencies": {
+    "date-fns": "^4.4.0",
     "typescript": "7.0.2",
     "vitest": "4.1.11"
   }

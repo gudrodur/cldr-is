@@ -7,6 +7,16 @@ Icelandic locale data, collation, and a working recipe for the JavaScript
 code and the measurements while the approach earns production mileage in one
 application. It will go to npm when that experience exists.
 
+**It is a recipe as much as a package, and copying it is a supported way to use
+it.** For dates and numbers, hand-writing your own is a reasonable choice — the
+code is thirty lines and you can write them. What is worth taking is not the
+code but the parts that are easy to get wrong and invisible when you do: the
+CLDR values, the three traps in [`src/format.ts`](src/format.ts), and above all
+the way to check your own work (["Pin it to
+Node"](#pin-whatever-you-write-to-node) below). Copy the file, keep the tests,
+delete the rest. For **collation** the advice is the opposite: do not hand-write
+it — see [below](#collation-the-part-no-polyfill-can-fix) for why.
+
 ## The problem
 
 Chromium keeps only "the minimum locale data for non-UI languages", and
@@ -36,8 +46,8 @@ Measured 2026-09-05 on bare workerd and Chrome 152: for `is`,
 |  | polyfill the data | format manually |
 |---|---|---|
 | what it is | load formatjs's CLDR data for `is` | render Icelandic from a month table and a few string joins |
-| browser cost | **191,966 B gzip**, Chromium visitors only | **1,618 B gzip**, everyone |
-| speed | 30,474 ns per `toLocaleString` call | 98 ns |
+| browser cost | **191,966 B gzip**, Chromium visitors only | **2,774 B gzip**, everyone |
+| speed | ~800 ns with the formatter reused; **~28,000 ns** per `toLocaleString` call that passes an options object | ~80 ns |
 | covers collation | **no — no Collator polyfill exists** | yes |
 | covers arbitrary locales and options | yes | no, only the shapes you write |
 
@@ -76,26 +86,53 @@ The obvious move is to load the same data in the browser behind a
 `shouldPolyfill` gate. We built that ([`src/client.ts`](src/client.ts)), shipped
 it behind a flag, measured it, and **turned it off**: 191,966 B gzip, most of it
 the time-zone table `@formatjs/intl-datetimeformat` needs, to fix a handful of
-rendered dates. The manual formatters that replaced it are 1,618 B gzip for
-dates, numbers *and* collation — 119× smaller — and about 310× faster per call
-than the `toLocaleString` they replaced.
+rendered dates. The manual formatters that replaced it are 2,774 B gzip for
+dates, numbers *and* collation — 69× smaller. (That figure is every export of
+both modules, bundled with esbuild and gzipped, so it can be reproduced. An
+earlier README said 1,618 B, measured over only the subset one application
+imported, which nobody else could check.)
 
-The catch is that "write it by hand" is how people get Icelandic dates subtly
-wrong. So do it the way that is checkable: **pin every manual formatter to the
-CLDR rendering of the same input under Node's full ICU.** The test is the whole
-argument.
+They are also faster, but read that claim carefully rather than off the table
+above. `toLocaleString(locale, options)` costs ~28 µs because it builds a
+formatter on nearly every call; the same call **without** an options object is
+~930 ns, and a hoisted `Intl.DateTimeFormat` you reuse is ~816 ns. So against
+the code we actually replaced — 35 call sites that all passed options — manual
+is roughly 350× faster, and against a reader who caches their formatter
+properly it is about 10×. Both are real; only the first is dramatic, and it is
+dramatic because of a pattern that is easy to fix without any of this.
+
+[`src/format.ts`](src/format.ts) has the shapes we needed, and
+`formatIsNumber` beside them. Import them, or copy the file — both are fine.
+
+### Pin whatever you write to Node
+
+This is the part that matters more than the code, and the reason "write it by
+hand" is safe advice here rather than reckless. **The runtime you are developing
+in cannot tell you whether your Icelandic is right** — your Chrome is the broken
+one. Node still has the data, so Node is the oracle:
 
 ```ts
-// The oracle is Node, which still has the data the browser dropped.
+// Node full ICU renders what CLDR says. Assert against it, not against taste.
 expect(formatIsDateTimeNumeric(d)).toBe(
   d.toLocaleString("is-IS", { day: "2-digit", month: "2-digit", year: "numeric",
                               hour: "2-digit", minute: "2-digit" }),
 );
 ```
 
-Do **not** pin it with `timeZone: "UTC"` on the Intl side unless the call site
-passes one. That makes the equality true by construction and hides the bug it was
-meant to catch — it hid exactly this one for us, for one review round.
+Write that once per shape and the hand-written table stops being a guess. It is
+what catches the abbreviated months (`sep.` with a period, `maí` without), and
+it is why copying this repo's *tests* matters more than copying its code.
+
+Two ways to get the test itself wrong:
+
+- **Do not pin with `timeZone: "UTC"` on the Intl side unless the call site
+  passes one.** That makes the equality true by construction and hides the bug
+  it was meant to catch. It hid exactly this one from us for a review round: the
+  date+time shapes were reading UTC parts where the calls they replaced read the
+  viewer's, which matched perfectly in Reykjavík and diverged in 19 of 49
+  comparisons in `Europe/Copenhagen`.
+- **Run the suite in more than one time zone.** `TZ=Europe/Copenhagen npm test`
+  costs nothing and is the only thing that would have caught the above.
 
 ### Server-rendered pages: the two halves must agree
 
@@ -139,21 +176,58 @@ import { compareIs } from "intl-is/collate";
 names.sort(compareIs);
 ```
 
-Pinned to Node full ICU over every ordered pair of the alphabet, 253 Icelandic
-country names, the letters CLDR tailors away from their base letter (`ä ø å œ ß`),
-ASCII punctuation, case, digits, and 200 000 random strings drawn from the whole
-character set — **zero divergences**. Two details were read off ICU rather than
-reasoned about, and both would have been wrong from memory: ICU orders
-punctuation by DUCET category, so `_` sorts before `-` despite the higher code
-point, and `œ`/`ß` expand to `oe`/`ss` instead of taking a weight of their own.
+Pinned to Node full ICU over **every ordered pair of all 450 Latin letters**
+through Latin Extended-B — 202,500 comparisons, zero divergences — plus every
+pair of the Icelandic alphabet in both cases, 253 Icelandic country names, both
+the composed and decomposed spelling of every accented letter, ASCII
+punctuation, case, digits, and 500 000 random strings drawn from that set.
 
-Not claimed: characters outside that set — CJK, emoji, unlisted symbols — get a
-stable code-point order that ICU is not promised to agree with.
+The Latin coverage is not completeness for its own sake. `ł` used to fall
+outside the table, into a band below every letter, so **`Łukasz` and `Michał`
+sorted ahead of every Icelandic name in the list** — and Polish is the most
+widely spoken foreign language in Iceland. A list of names in the languages
+actually spoken here, Polish, Vietnamese, Turkish, Hungarian, Latvian, Czech and
+Norwegian among them, now comes out in exactly ICU's order.
 
-It is about **3× slower than a native `Intl.Collator`** (20 ms versus 7 ms
-sorting 10 000 names). That is the honest cost of being correct on a runtime
-whose collator is not, and it is the one measurement here that does not favour
-this approach.
+Four details were read off ICU rather than reasoned about, and all four would
+have been wrong from memory:
+
+- ICU orders punctuation by **DUCET category**, so `_` sorts before `-` despite
+  the higher code point.
+- `œ` and `ß` **expand** to `oe`/`ss` rather than taking a weight of their own —
+  and they are not equal to what they expand to. The level they differ on is the
+  **secondary**, which you can see by asking for `sensitivity: "accent"`: no case
+  level, and `ß` still sorts after `ss`. That is why ICU puts `aß` *after* `Ass`
+  even though `a` sorts before `A` — a secondary difference outranks an earlier
+  case difference, and a tertiary marker gets that pair backwards.
+- ICU **normalises before it compares**, so `"á"` and `"a" + U+0301` are the same
+  string to it. Text really does arrive decomposed — macOS filesystems, some
+  paste sources — so a comparator that skips this splits a name from its own
+  other spelling.
+- ICU's secondary order for **combining marks is not code-point order**: U+0306
+  (breve) sorts before U+0302 (circumflex). There are 59 distinct ranks among
+  the 112 marks in U+0300–U+036F, the order is the same whatever letter carries
+  them, and the marks compare **position by position** rather than as a set — so
+  `ǡ` (a + U+0307 + U+0304) sorts *before* `ā` (a + U+0304). Adding the code
+  points together, which is the obvious shortcut, makes `ô` and `ŏ`
+  interchangeable.
+
+Not claimed: exact ICU order for characters outside the Latin script — Greek,
+Cyrillic, Hebrew, CJK, emoji, unlisted symbols. Two things *are* guaranteed for
+them. Two different characters never compare equal, because a caller reads 0 as
+"these are the same" and drops one of them. And an unlisted **letter** sorts
+after the alphabet rather than before it: both are wrong against ICU, but a name
+in a script this table does not cover belongs at the bottom of a member list,
+not ahead of `Aðalheiður`. That choice is measured, not assumed — against ICU
+over assigned characters it diverges on 18.5% of pairs where one shared band
+diverged on 53.5%, and on Latin-plus-CJK-plus-digits 1.0% against 37.9%. It is
+worse in exactly one place, a uniform draw over the whole code space, which is
+mostly *unassigned* code points and therefore not text.
+
+It is about **2.4× slower than a native `Intl.Collator`** (17 ms versus 7 ms
+sorting 10 000 names) and the tables above cost **774 B gzip** on top of what it
+was before them. Those are the two measurements here that do not favour this
+approach, and they buy the whole Latin script.
 
 ## The trap next door: date-fns is a separate axis
 
@@ -172,6 +246,32 @@ One more thing to check once you do: date-fns's abbreviated Icelandic months are
 **not** CLDR's. date-fns gives `mars, apríl, júní, júlí, ágúst, sept.` where CLDR
 gives `mar., apr., jún., júl., ágú., sep.` — six of twelve differ. If anything
 else on the page renders CLDR short months, the calendar will not match it.
+
+That comparison is a claim about a package that can change it in a patch
+release, so it is not maintained by hand: `npm run measure` reads both tables —
+date-fns's and Node's — writes them into `docs/reference.json`, and
+`test/reference.test.ts` fails if date-fns ever ships different ones. The demo
+page renders that file rather than a copy.
+
+## See it fail, in your own browser
+
+[`docs/index.html`](docs/index.html) is a single page that runs all twelve checks
+live and puts your browser's answer beside what CLDR actually says. It is the
+only place the failure is *visible* rather than described — and if you are
+reading this in Firefox it will tell you everything passes, which is exactly the
+trap this repository is about. Open it in Chrome too.
+
+It has to be served rather than opened off the disk (it loads two files beside
+it):
+
+```bash
+npx serve docs      # then open the printed URL
+```
+
+The checks it runs are not a second copy of anything: `docs/cases.js` defines
+each one once, `scripts/measure.mjs` runs those same functions under Node's full
+ICU to produce the "correct" column, and the page imports the same file. A
+comparison page whose two halves have drifted apart is worse than no page.
 
 ## Measurements
 
@@ -199,22 +299,26 @@ not going to start qualifying because a website asked.
 [cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64) was
 opened 2022-09-30. The maintainer was *receptive* — "annoying but maybe not a
 huge deal for a server binary" — and the reporter went and measured it: swapping
-in the full `icudt71l.dat` took the binary from 63 MB to 82 MB, the data from
-~10 MB to ~30 MB, and nothing crashed. Five comments over five days, and then
+in the full `icudt71l.dat` took the binary from 63 MB to 82 MB and nothing
+crashed. (The often-quoted "data goes from ~10 MB to ~30 MB" is the maintainer
+*asking* whether that follows, not a measurement anyone made.) Five comments
+over five days, and then
 **nothing: no comment, no label, no assignee, for 1,434 days** as of 2026-09-08.
 A willing maintainer and four years of silence is a worse signal than a "no",
 because a "no" can be argued with.
 
 **Mozilla went the other way and stopped, which is the interesting part.**
 [Bug 1612379](https://bugzilla.mozilla.org/show_bug.cgi?id=1612379) proposed
-trimming Firefox from 459 locales to roughly 100–150 — about 1.8 MB — and it
+trimming Firefox's ICU data from all 459 locales ICU ships down to the ones
+Firefox itself is translated into — 1,816,512 bytes off the `.dat` file, 11.1 MB
+to 9.3 MB — and it
 stalled on the principle that dropping languages with millions of speakers is
 not acceptable, and that once Firefox's intl data is available to the Web it
 should remain available. Deprioritised P2 → P5, to revisit "once we have ICU4X".
 
-That is the whole thing in one comparison: two vendors looked at the same
-1–2 MB and reached opposite conclusions, and that is why your Icelandic dates
-work in Firefox and not in Chrome. It is a values split, not a technical
+That is the whole thing in one comparison: two vendors looked at the same couple
+of megabytes of locale data and reached opposite conclusions, and that is why
+your Icelandic dates work in Firefox and not in Chrome. It is a values split, not a technical
 inevitability — and a values split does not get resolved by filing a bug.
 
 The one thing worth watching is **ICU4X**, which both threads independently

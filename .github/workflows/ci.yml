@@ -1,0 +1,49 @@
+# The demo page in docs/ shows what CLDR says, from docs/reference.json — a file
+# that is GENERATED (npm run measure) rather than typed. test/reference.test.ts
+# fails when the committed answers have drifted from what Node's full ICU
+# produces now, which is the only thing standing between a Node/ICU upgrade and
+# a published page confidently showing answers nobody has checked.
+#
+# That guard existed before this workflow did, and nothing ran it. A guard
+# nobody runs is not a guard.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      # Two zones on purpose. The date shapes read LOCAL wall-clock, so a suite
+      # that only ever runs in UTC can pass while the formatters are wrong
+      # everywhere else — that is exactly how a real bug survived a review round.
+      - run: npm test
+      - name: npm test (Europe/Copenhagen)
+        run: TZ=Europe/Copenhagen npm test
+      # Regenerating must be a no-op in the ANSWERS. If it is not, someone
+      # edited a case without running `npm run measure`, and the page and the
+      # reference have parted company.
+      #
+      # `generatedBy` and `generatedAt` are deliberately excluded. They record
+      # which Node produced the file, which is worth keeping in the file and is
+      # not an answer — and it differs between a laptop and a runner on another
+      # patch release. The first run of this workflow failed on exactly that,
+      # v24.19.0 against v24.20.0, with all twelve renderings identical. A gate
+      # that fails on something harmless is how a gate stops being read.
+      - name: docs/reference.json answers are current
+        run: |
+          answers() { jq -S 'del(.generatedBy, .generatedAt)' "$1"; }
+          answers docs/reference.json > /tmp/recorded.json
+          npm run measure
+          answers docs/reference.json > /tmp/fresh.json
+          diff -u /tmp/recorded.json /tmp/fresh.json
