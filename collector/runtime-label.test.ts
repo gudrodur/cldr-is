@@ -280,3 +280,53 @@ describe("appLabel", () => {
     expect(engineLabel(ua)).toBe("Chromium 151");
   });
 });
+
+// iOS in-app browsers. Facebook, Messenger and Instagram all send
+// `Mobile/15E148` with no `Version/… Safari` and no `CriOS/`, so every one of
+// them landed in `other` — Android announces itself with `; wv)` and iOS
+// announces nothing. The app token is the only evidence there is, so the rule
+// is: an unrecognised browser inside a KNOWN app is a WebView.
+//
+// Same provenance caveat as above: shapes built from each app's documented
+// token conventions, not captured strings.
+describe("an unrecognised browser inside a known app is a WebView", () => {
+  it.each([
+    [
+      "WebView / iOS",
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/FBIOS;FBDV/iPhone14,2;FBSV/17.1]",
+    ],
+    [
+      "WebView / iOS",
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/MessengerForiOS;FBAV/460.0;]",
+    ],
+    [
+      "WebView / iOS",
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 300.0 (iPhone14,2; iOS 17_5)",
+    ],
+  ])("labels %s", (expected, agent) => {
+    expect(runtimeLabel(agent)).toBe(expected);
+  });
+
+  it("carries no version, because the string offers none", () => {
+    // FBAV is the APP's version and FBSV is the iOS release. Neither is the
+    // engine, and inventing one from them would be a fabrication.
+    const ua =
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/MessengerForiOS;FBAV/460.0;]";
+    expect(runtimeLabel(ua)).not.toMatch(/\d/);
+    expect(appLabel(ua)).toBe("Messenger");
+  });
+
+  it("leaves a real browser and a genuinely unknown one alone", () => {
+    // Safari still wins on its own pattern...
+    expect(
+      runtimeLabel(
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+      ),
+    ).toBe("Safari 26 / iOS");
+    // ...and an unknown browser with NO app stays `other`, so the `unlabelled`
+    // counter in /summary keeps meaning "extend the family table".
+    expect(
+      runtimeLabel("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) SomeNewBrowser/1.0"),
+    ).toBe("other / iOS");
+  });
+});

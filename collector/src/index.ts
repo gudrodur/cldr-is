@@ -121,6 +121,22 @@ export function runtimeLabel(userAgent: string): string {
       break;
     }
   }
+  // An unrecognised browser running inside a known app is a WebView, and on iOS
+  // that is the ONLY shape a Meta in-app browser has: Facebook, Messenger and
+  // Instagram all send `Mobile/15E148` with no `Version/… Safari` and no
+  // `CriOS/`, so every one of them landed in `other`. Android says `; wv)` and
+  // is caught above; iOS says nothing at all, and the app token is the only
+  // evidence there is.
+  //
+  // No version, because none is offered — the string carries the APP's version
+  // (`FBAV/`), never the engine's, and inventing one from `FBSV/` (the iOS
+  // release) would be a fabrication of exactly the kind this table exists to
+  // avoid. `WebView / iOS` with an empty version is the honest label.
+  //
+  // Deliberately narrow: this only fires when the family table failed AND an
+  // app was recognised. An unknown browser with no app stays `other`, so the
+  // `unlabelled` counter in /summary keeps meaning "extend the family table".
+  if (family === "other" && appLabel(userAgent)) family = "WebView";
   return `${family}${version ? " " + version : ""} / ${platform}`;
 }
 
