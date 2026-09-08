@@ -55,9 +55,12 @@ runtime built on Chromium's ICU inherits the gap:
   family table's Safari pattern was broken, so it reads `other / iOS`, and the
   user agent that would say which browser it was is discarded before storage. **Every `/ iOS`
   row measures Apple's WebKit**, whatever name the label carries: Apple requires
-  it, so a `Firefox 155 / iOS` row (one arrived) says nothing about Gecko and a
-  `Chrome / iOS` row says nothing about Chromium. On iOS the browser name is a
-  skin. There is no Apple
+  it, so the `Firefox 155 / iOS` and `Chrome 150 / iOS` rows that arrived say
+  nothing about Gecko or Chromium respectively — both are measurements of
+  Safari's engine. On iOS the browser name is a skin. Those two rows are also
+  the evidence that the family table's iOS patterns work now: every iPhone
+  report landed in `other` until they were fixed on 2026-09-08, and none has
+  since. There is no Apple
   hardware in this project, so those reports are the measurement. The first one
   arrived as a screenshot with no version in it, which is why the page records a
   runtime label now and why these two carry numbers.
