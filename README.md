@@ -344,8 +344,22 @@ The check is not weak: those ten names come out in a demonstrably different
 order under `en`, `en-GB`, `en-US` and the root locale, verified against Node
 full ICU. So this is not a test that any collator would pass.
 
-It is still **one report, self-submitted through a page**, and the paragraph
-above it is written from many. It is recorded here rather than acted on, because
+**Chrome 153 on Windows then reported, and it fails `sort`.** Same Chromium
+major, same operating system, and — recorded by the engine column added hours
+earlier for exactly this — the same `Chromium 153` engine:
+
+| Windows, `Chromium 153` | resolved | sort |
+|---|---|---|
+| Chrome 153 | `en-US` | **fails** |
+| Edge 153 | `en-GB` | **passes** |
+
+Their failing sets are otherwise **identical, check for check**. One differs,
+and it is the collation one. That rules out the obvious alternative — that
+Chromium 153 started shipping `coll_tree` for `is` — and leaves Edge's own
+build as what distinguishes them.
+
+It is still **one Edge report, self-submitted through a page**, and the
+paragraph above it is written from many. It is recorded here rather than acted on, because
 the honest reading is that formatting data and collation data are different ICU
 trees — `curr_tree`, the date trees, and `coll_tree` are separate entries in the
 filter this whole page is about — and a build carrying one without the others is
