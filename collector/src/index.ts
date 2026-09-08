@@ -56,6 +56,14 @@ const PLATFORMS: Array<[string, RegExp]> = [
 // "Safari 18 / macOS". Family from a fixed list, MAJOR version only, coarse
 // platform. Nothing else survives — not the build number, not the OS version,
 // not the original string.
+//
+// Some browsers cannot be told apart from the client side at all. Measured
+// 2026-09-08: Vivaldi 8.2.4 sends Chrome's user agent verbatim, reports "Google
+// Chrome" in navigator.userAgentData.brands, AND in the high-entropy
+// fullVersionList — the only difference is the patch build (…112 vs …82), which
+// identifies a build and not a browser. So detection cannot do it, and the page
+// asks instead: `said` below is a name the reader typed. That is better data
+// than any sniffing would produce, because the reader knows the answer.
 function runtimeLabel(userAgent: string): string {
   let family = "other";
   let version = "";
@@ -118,6 +126,13 @@ export default {
         return json({ error: "userAgent, resolved, checked and broken are required" }, 400);
       }
 
+      // Optional, typed by the reader when the detected label is wrong. Same
+      // treatment as everything else from a stranger: printable ASCII, short.
+      const said =
+        typeof body.said === "string"
+          ? body.said.replace(/[^\x20-\x7E]/g, "").slice(0, 40).trim() || null
+          : null;
+
       const failing = Array.isArray(body.failing)
         ? body.failing
             .filter((id) => typeof id === "string" && /^[a-z0-9-]{1,40}$/.test(id))
@@ -130,12 +145,13 @@ export default {
       // existed: 8 rows/second from one client, 7x D1's daily write allowance,
       // which would have taken the endpoint down for everyone.
       await env.DB.prepare(
-        `INSERT OR IGNORE INTO reports (first_seen, runtime, resolved, checked, broken, failing, country)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR IGNORE INTO reports (first_seen, runtime, said, resolved, checked, broken, failing, country)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
         .bind(
           new Date().toISOString().slice(0, 10),
           runtimeLabel(rawAgent),
+          said,
           resolved,
           checked,
           broken,
@@ -146,15 +162,15 @@ export default {
 
       // Tell the reporter exactly what was kept. They are entitled to know, and
       // it makes the promise checkable from the browser console.
-      return json({ ok: true, stored: { runtime: runtimeLabel(rawAgent), resolved, checked, broken } });
+      return json({ ok: true, stored: { runtime: runtimeLabel(rawAgent), said, resolved, checked, broken } });
     }
 
     if (url.pathname === "/summary" && request.method === "GET") {
       const { results } = await env.DB.prepare(
-        `SELECT runtime, resolved, checked, broken, failing, MIN(first_seen) AS since
+        `SELECT runtime, said, resolved, checked, broken, failing, MIN(first_seen) AS since
            FROM reports
-          GROUP BY runtime, resolved, checked, broken
-          ORDER BY runtime`,
+          GROUP BY runtime, said, resolved, checked, broken
+          ORDER BY runtime, said`,
       ).all();
 
       const totals = await env.DB.prepare(
@@ -169,6 +185,11 @@ export default {
           "(browser family, major version, coarse platform), the resolved locale, the check counts, " +
           "which checks failed, and Cloudflare's two-letter country. It never receives or stores the " +
           "full user agent, an IP address, a cookie or any visitor id. One row per runtime and verdict.",
+        caveat:
+          "`runtime` is what the browser reports and some cannot be told apart from the page at all " +
+          "— Vivaldi is byte-identical to Chrome in the user agent, the brand list and the " +
+          "high-entropy hints. `said` is a name the reader typed when the detection was wrong, and " +
+          "is the more reliable of the two when present.",
         totals,
         runtimes: results,
       });
