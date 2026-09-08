@@ -418,35 +418,66 @@ So it is not a behaviour that happens to look right — **ICU genuinely resolves
 is the mechanism the `resolvedCollator` field was added to capture, confirmed
 without waiting for a report to carry it.
 
-### 81,200 bytes buys all of Icelandic. Edge spends 1.5 MB and does not get it.
+### Read the data file itself: it is 80 bytes versus 9,360
 
-Three Chromium **152** builds on one machine, three `icudtl.dat` files:
+Everything above was inferred from behaviour and file sizes. On 2026-09-08 the
+`icudtl.dat` files were parsed directly instead — the ICU package table of
+contents lists every entry with an offset, so each locale's bytes can simply be
+read off. No inference left.
 
-| build | `icudtl.dat` | vs Chrome | Icelandic it has |
+Every Icelandic entry in three Chromium **152** builds:
+
+| entry | Chrome 152 | Vivaldi 8.2 | Edge 152 |
 |---|---|---|---|
-| Google Chrome 152 | 10,876,560 B | — | none |
-| Vivaldi 8.2 (Chromium 152) | 10,957,760 B | **+81,200 B** | **all of it** |
-| Microsoft Edge 152 | 12,461,408 B | **+1,584,848 B** | collation only |
+| **`is.res`** (root: dates, months, weekdays, number symbols) | **80 B** | **9,360 B** | **80 B** |
+| `coll/is.res` (collation) | — | 23,872 B | 23,872 B |
+| `curr/is.res` (currency) | — | 14,736 B | 14,736 B |
+| `zone/is.res` | — | 15,280 B | 15,280 B |
+| `region/is.res` | — | 6,336 B | 6,048 B |
+| `unit/is.res` | — | 5,840 B | 5,840 B |
+| `lang/is.res` | 112 B | 5,936 B | 112 B |
+| **total Icelandic** | **192 B** | **81,360 B** | **65,968 B** |
 
-Edge carries **nineteen times more extra ICU data than Vivaldi and still cannot
-write `desember`.** Whatever that 1.5 MB is, it is not the Icelandic formatting
-trees — while Vivaldi's 81 KB is, and is the whole fix.
+Three things fall out, and two of them correct what this page said earlier.
 
-That is the sharpest available answer to the cost objection on
-[crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575),
-where the open question since 2023 has been whether the data increase is worth
-it: **0.7% of the ICU data Chrome already ships**, measured on two shipping
-Chromium forks that made opposite choices.
+**1. The 81,200 bytes really is Icelandic, and now that is measured rather than
+reasoned.** Vivaldi's Icelandic entries exceed Chrome's by 81,168 B; the whole
+file differs by 81,200 B. The 32-byte remainder is table-of-contents overhead.
+Vivaldi added `is` to five trees and changed nothing else. This was the weakest
+claim on the page — a byte delta between two files, attributed to one locale —
+and it survives.
 
-**Reproduce it without installing anything:**
+**2. `is` is not absent from Chrome. It is present and hollow.** The root entry
+exists at **80 bytes**, which is what "keeps only the minimum locale data for
+non-UI languages" means in practice: the bundle is there so lookups resolve, and
+it contains essentially nothing. Vivaldi's is 9,360 B. That is the difference
+between `desember` and `December` — **9,280 bytes.**
 
-```bash
-curl -sLO https://packages.microsoft.com/yumrepos/edge/Packages/m/microsoft-edge-stable-152.0.4191.66-1.x86_64.rpm
-rpm2cpio microsoft-edge-stable-*.rpm | cpio -idm          # extract, do not install
-./opt/microsoft/msedge/msedge --headless=new --no-sandbox \
-  --user-data-dir=/tmp/e --virtual-time-budget=3000 --dump-dom <your-probe.html>
-```
+**3. Edge has the currency data and still gets currency wrong**, which corrects
+the earlier reading here that Edge "ships collation and nothing else". It ships
+`is` in *five* trees, byte-identical to Vivaldi in four of them. What it does
+**not** ship is the root bundle: 80 bytes, exactly Chrome's stub.
 
+That explains the whole Edge signature at once. Collation is self-contained in
+`coll/is.res`, so it works. Dates, month names and number symbols live in the
+root bundle, so they are English. And **currency formatting needs both** — the
+symbol from `curr/is.res`, which Edge has, and the number pattern from the root
+bundle, which it does not — so it fails despite the currency data being present.
+A missing check is not always a missing file.
+
+**So Edge's extra 1.5 MB is not Icelandic** — Icelandic is 66 KB of it. Edge
+restored the auxiliary trees broadly: `coll` 99 → 132 locales, `curr` 310 → 378,
+`region` 267 → 324, `unit` 261 → 326, `zone` 267 → 330. What it left alone, for
+every non-UI language, is the root bundle. Whatever the rule inside Microsoft
+is, it is not "add Icelandic".
+
+**Reproduce it:** the entry names are plain ASCII in the package TOC, so
+`strings icudtl.dat | grep 'is\.res'` gets you the presence table with no tools
+at all. Sizes need the offsets: read `headerSize` from the first two bytes, then
+a `uint32` count and that many `(nameOffset, dataOffset)` pairs, and take each
+entry's size as the difference between consecutive data offsets.
+
+### 81,200 bytes buys all of Icelandic. Edge spends 1.5 MB and does not get it.
 ### Do not report from an emulated device — it produces a false row
 
 Chrome DevTools' device toolbar, and `--user-agent` on the command line, change
@@ -475,7 +506,7 @@ not. They are missing *different parts* of it:
 | | dates, numbers, lists | currency | collation |
 |---|---|---|---|
 | Chrome on the desktop | ✗ | ✗ | ✗ |
-| Edge on Windows | ✗ | ✗ | **✓** |
+| Edge (Windows and Linux) | ✗ | ✗ | **✓** |
 | the Android rows that have Icelandic | **✓** | ✗ | **✓** |
 | desktop rows labelled Chrome that pass | **✓** | **✓** | **✓** |
 
