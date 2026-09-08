@@ -43,6 +43,7 @@
   td.yours.ok  { color:var(--good); }
   .tag { display:inline-block; font-size:.75rem; padding:.1rem .45rem; border-radius:999px;
          border:1px solid var(--line); color:var(--muted); }
+  .note { color:var(--muted); font-size:.84rem; line-height:1.5; margin-top:.35rem; max-width:34rem; }
   .scroll { overflow-x:auto; }
   .cols { display:grid; gap:1rem; grid-template-columns:1fr; }
   @media (min-width:44rem) { .cols { grid-template-columns:1fr 1fr; } }
@@ -217,7 +218,7 @@ const live = {
   "Relative time": () => new Intl.RelativeTimeFormat("is").format(-2, "day"),
   "List": () => new Intl.ListFormat("is").format(["a", "b", "c"]),
   "Language name": () => new Intl.DisplayNames(["is"], { type: "language" }).of("is"),
-  "Plural (correct everywhere)": () => new Intl.PluralRules("is").select(21),
+  "Plural category": () => new Intl.PluralRules("is").select(21),
 };
 
 const ref = await (await fetch("./reference.json")).json();
@@ -232,6 +233,19 @@ const correct = ref.cases.find((c) => c.label === "Sort").cldr.split(", ");
 live["Sort"] = () => yours.join(", ");
 const short = (list) => list.slice(0, 3).join(", ") + ", …";
 
+// One row needs a gloss or it reads as a bug: select() returns a CLDR CATEGORY
+// KEYWORD, not text. The keywords are the same English identifiers in every
+// locale — "one" here is not an untranslated "einn".
+const NOTES = {
+  "Plural category": (c) =>
+    `A category name, not a translation. The keywords are the same in every ` +
+    `locale (Icelandic has <code>${c.categories.is.join("</code>, <code>")}</code>; ` +
+    `Polish has <code>${c.categories.pl.join("</code>, <code>")}</code>). ` +
+    `This row is the proof the Icelandic rules really are present: English ` +
+    `answers <code>${c.contrast.value}</code> for 21, Icelandic answers ` +
+    `<code>${c.cldr}</code> — which is why it is “21 bíll”, not “21 bílar”.`,
+};
+
 for (const c of ref.cases) {
   const run = live[c.label];
   if (!run) continue;
@@ -244,7 +258,8 @@ for (const c of ref.cases) {
   const tr = document.createElement("tr");
   const what = document.createElement("td");
   what.innerHTML = `${c.label}<br><code>${c.expr.replace(/</g, "&lt;")}</code>` +
-    (isSort ? ` <a href="#sorting" class="tag">full list below</a>` : "");
+    (isSort ? ` <a href="#sorting" class="tag">full list below</a>` : "") +
+    (NOTES[c.label] ? `<div class="note">${NOTES[c.label](c)}</div>` : "");
   const yoursCell = document.createElement("td");
   yoursCell.className = "yours " + (ok ? "ok" : "bad");
   yoursCell.textContent = isSort ? short(yours) : mine;

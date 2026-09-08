@@ -70,9 +70,25 @@
       "cldr": "Aðalheiður, Ásta, Einar, Ína, Ólafur, Úlfur, Ýrr, Þórður, Ævar, Örn"
     },
     {
-      "label": "Plural (correct everywhere)",
+      "label": "Plural category",
       "expr": "new Intl.PluralRules(\"is\").select(21)",
-      "cldr": "one"
+      "cldr": "one",
+      "contrast": {
+        "label": "English for the same number",
+        "value": "other"
+      },
+      "categories": {
+        "is": [
+          "one",
+          "other"
+        ],
+        "pl": [
+          "one",
+          "few",
+          "many",
+          "other"
+        ]
+      }
     }
   ]
 }
