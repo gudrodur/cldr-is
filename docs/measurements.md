@@ -1,6 +1,12 @@
 # Measurements
 
-All measured 2026-09-05. The probe that produced the runtime table is
+**Dates are per section, not per file.** The runtime table below was measured
+2026-09-05; the workaround, manual-formatter, Vivaldi, correctness and upstream
+sections were measured 2026-09-07 and 2026-09-08 and each says so. This heading
+claimed a single date for all of them until 2026-09-08, which is the
+heading-disagrees-with-its-section defect this project keeps finding elsewhere.
+
+The probe that produced the runtime table is
 `scripts/probe-worker-intl.mjs` (run with `npm run probe`; needs `wrangler` on
 PATH). The gap did not move between workerd 1.20260820.1 and 1.20260826.1.
 
@@ -119,10 +125,13 @@ not help — hoisting the options constant changed nothing (28,290 vs 28,513 ns)
 
 So the comparison depends on which code you mean:
 
-- versus what this application actually had — 35 call sites, of which **17
-  passed an options object and 18 passed only a locale** (counted from the diff
-  of the change, 2026-09-08) — manual is ~350× faster on the 17 and ~12× on the
-  18. This line said "all passing options" until it was checked;
+- versus what this application actually had — 35 call sites, a **majority**
+  passing an options object and the rest passing only a locale (2026-09-08).
+  Manual is ~350× faster on the ones with options and roughly 7-11× on the ones
+  without. This line said "all passing options" until it was checked, and then
+  gave an exact 17/18 split that the recorded call-site list does not reproduce;
+  the split is stated as a majority now because that is what the evidence
+  carries;
 - versus a reader who hoists and reuses an `Intl.DateTimeFormat` — about **10×**;
 - versus a bare no-options call — about **7×**.
 
@@ -188,8 +197,11 @@ It is 81,200 bytes, and a shipping Chromium browser already pays it.
 Found because a reader of the demo page said "Vivaldi uses Chromium and we still
 speak Icelandic there". The README had claimed "Chrome, Edge, Opera, Brave, and
 anything else on the same engine", which was asserted rather than measured — the
-same class of defect as the Safari claim beside it. Opera and Brave are still
-unmeasured and the README now says so.
+same class of defect as the Safari claim beside it. **Opera has since been measured** — on Android, where it
+has Icelandic and fails only `currency` like every other Chromium row from that
+platform. Opera *on the desktop* and Brave anywhere are still unmeasured, and
+this line said "Opera and Brave are still unmeasured" after the Opera row had
+already arrived.
 
 ## Correctness
 
@@ -320,7 +332,7 @@ Not a benchmark, but the same discipline: read rather than assumed.
 |---|---|
 | cloudflare/workerd#64 opened | 2022-09-30 |
 | last comment on it | 2022-10-04 |
-| **days dormant** | **1,434** |
+| **days dormant** | **1,435** |
 | labels / assignees | none / none |
 | full-ICU cost, **measured** by the reporter | binary 63 MB → 82 MB (`icudt71l.dat` swapped in, nothing crashed) |
 | full-ICU data cost | **not measured by anyone.** "~10 MB → ~30 MB" is the maintainer asking whether that follows, in the comment that also asks the startup question. Quoting it as a measurement is the easy mistake here |
