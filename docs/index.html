@@ -83,8 +83,8 @@
     <div class="guess">Recorded as <strong id="agent">…</strong></div>
     <div class="said">
       <span id="said-why">Not right? Some browsers look exactly like Chrome from
-      here — Vivaldi does.</span>
-      <input id="said" type="text" maxlength="40" placeholder="Vivaldi 8.2.4" autocomplete="off">
+      here — Vivaldi does. <strong>Which browser is this?</strong></span>
+      <input id="said" type="text" maxlength="40" placeholder="Vivaldi" autocomplete="off">
       <button id="said-send" type="button">Correct it</button>
       <span id="said-done"></span>
     </div>
@@ -359,7 +359,8 @@ if (broken === 0) {
   why.innerHTML =
     `All ${checked} checks match CLDR, and <code>Intl</code> resolves <code>is</code> ` +
     `to <code>${resolved}</code>. Firefox, Safari and Node ship full ICU — measured. Your ` +
-    `visitors on Chrome and Edge are not so lucky, which is the point of this ` +
+    `visitors on desktop Chrome and Edge are not so lucky, which is the point of ` +
+    `this ` +
     `page: from here, the bug is invisible.`;
 } else {
   box.className = "verdict broken";

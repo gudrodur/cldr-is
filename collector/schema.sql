@@ -13,7 +13,14 @@ CREATE TABLE reports (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   first_seen  TEXT    NOT NULL,          -- date only, YYYY-MM-DD
   runtime     TEXT    NOT NULL,          -- "Safari 18 / macOS", what the browser reports
-  said        TEXT,                      -- what the reader typed, when detection was wrong
+  -- NOT NULL with an empty default, and that is load-bearing rather than tidy:
+  -- SQLite treats NULL as DISTINCT in a UNIQUE constraint, so a nullable column
+  -- here silently switched the dedupe off for the common case. Every page load
+  -- reports with no `said`, so every page load inserted a row and the flood the
+  -- constraint exists to absorb was unthrottled again for anyone who omitted the
+  -- field. Measured 2026-09-08: three identical no-`said` reports made three
+  -- rows; three identical ones WITH `said` made one.
+  said        TEXT    NOT NULL DEFAULT '',
   resolved    TEXT    NOT NULL,          -- Intl.DateTimeFormat("is").resolvedOptions().locale
   checked     INTEGER NOT NULL,
   broken      INTEGER NOT NULL,
