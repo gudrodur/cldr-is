@@ -89,7 +89,7 @@
 </div>
 <p class="muted" id="provenance"></p>
 
-<h2>Sorting is the one no polyfill can fix</h2>
+<h2 id="sorting">Sorting is the one no polyfill can fix</h2>
 <p>
   <code>á é í ó ú ý ð þ æ ö</code> are letters in their own right in Icelandic, not
   accented variants. A fallback collation treats them as variants, so
@@ -225,8 +225,14 @@ const tbody = document.querySelector("#cases tbody");
 let broken = 0;
 let checked = 0;
 
+// Sorting runs here rather than in the `live` map because its result is a list,
+// and the table shows a shortened form of it with a link to the full comparison.
+const yours = ref.names.slice().sort((a, b) => a.localeCompare(b, "is"));
+const correct = ref.cases.find((c) => c.label === "Sort").cldr.split(", ");
+live["Sort"] = () => yours.join(", ");
+const short = (list) => list.slice(0, 3).join(", ") + ", …";
+
 for (const c of ref.cases) {
-  if (c.label === "Sort") continue;
   const run = live[c.label];
   if (!run) continue;
   let mine;
@@ -234,24 +240,20 @@ for (const c of ref.cases) {
   const ok = mine === c.cldr;
   checked++;
   if (!ok) broken++;
+  const isSort = c.label === "Sort";
   const tr = document.createElement("tr");
   const what = document.createElement("td");
-  what.innerHTML = `${c.label}<br><code>${c.expr.replace(/</g, "&lt;")}</code>`;
-  const yours = document.createElement("td");
-  yours.className = "yours " + (ok ? "ok" : "bad");
-  yours.textContent = mine;
+  what.innerHTML = `${c.label}<br><code>${c.expr.replace(/</g, "&lt;")}</code>` +
+    (isSort ? ` <a href="#sorting" class="tag">full list below</a>` : "");
+  const yoursCell = document.createElement("td");
+  yoursCell.className = "yours " + (ok ? "ok" : "bad");
+  yoursCell.textContent = isSort ? short(yours) : mine;
   const cldr = document.createElement("td");
-  cldr.textContent = c.cldr;
-  tr.append(what, yours, cldr);
+  cldr.textContent = isSort ? short(correct) : c.cldr;
+  tr.append(what, yoursCell, cldr);
   tbody.append(tr);
 }
 
-// Sorting, live.
-const yours = ref.names.slice().sort((a, b) => a.localeCompare(b, "is"));
-const correct = ref.cases.find((c) => c.label === "Sort").cldr.split(", ");
-const sortMatches = yours.join(", ") === correct.join(", ");
-if (!sortMatches) broken++;
-checked++;
 for (const [id, list] of [["sort-yours", yours], ["sort-cldr", correct]]) {
   const ol = document.getElementById(id);
   list.forEach((name, i) => {
