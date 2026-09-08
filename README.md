@@ -3,6 +3,16 @@
 Icelandic locale data, collation, and a working recipe for the JavaScript
 `Intl` API on runtimes that ship without it.
 
+### → [Does your browser speak Icelandic?](https://gudrodur.github.io/intl-is/)
+
+One page, twelve checks, run in whatever browser opens it and compared against
+what CLDR actually says. **Open it in Chrome and in Firefox** — that is the whole
+problem in one comparison, and it takes ten seconds.
+
+If everything passes, the bug is invisible from where you are sitting, which is
+exactly how it reaches production. Firefox, Safari and Node ship full ICU;
+Chrome and Edge do not.
+
 **Status: not published, not yet built as a package.** This repository holds the
 code and the measurements while the approach earns production mileage in one
 application. It will go to npm when that experience exists.
@@ -323,13 +333,16 @@ date-fns's and Node's — writes them into `docs/reference.json`, and
 `test/reference.test.ts` fails if date-fns ever ships different ones. The demo
 page renders that file rather than a copy.
 
-## See it fail, in your own browser
+## The page, and how it is built
 
-[`docs/index.html`](docs/index.html) is a single page that runs all twelve checks
-live and puts your browser's answer beside what CLDR actually says. It is the
-only place the failure is *visible* rather than described — and if you are
-reading this in Firefox it will tell you everything passes, which is exactly the
-trap this repository is about. Open it in Chrome too.
+[The page at the top](https://gudrodur.github.io/intl-is/) is the only place the
+failure is *visible* rather than described. Source:
+[`docs/index.html`](docs/index.html).
+
+It reports what it measured, so a runtime nobody here owns still gets measured
+instead of guessed at — that is how Safari got into the table. What comes back is
+public: **[everything it has collected](https://intl-is-reports.gudrodur.workers.dev/summary)**,
+one row per runtime and verdict, with a runtime label rather than a user agent.
 
 It has to be served rather than opened off the disk (it loads two files beside
 it):
