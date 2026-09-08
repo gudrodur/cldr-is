@@ -219,6 +219,13 @@ export default {
           "is the more reliable of the two when present — but it is unverified self-report, nothing " +
           "checks it, and every distinct spelling is its own row, so read it as a hint and group by " +
           "hand rather than counting on it.",
+        knownGap:
+          "A row reading `other / iOS` from 2026-09-08 is a detection bug, not an unknown browser: " +
+          "the Safari pattern required the word Safari immediately after the version and iOS puts a " +
+          "build token in between, so every iPhone landed in `other` until it was fixed that day. " +
+          "The affected row cannot be relabelled — the user agent is discarded before storage, so " +
+          "nothing here can say whether it was Safari or Chrome on iOS, both of which are WebKit and " +
+          "both of which pass. It is left as recorded rather than guessed at.",
         totals,
         runtimes: results,
       });
