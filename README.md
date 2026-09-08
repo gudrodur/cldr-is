@@ -343,47 +343,76 @@ the English alphabet:
 member list, Ævar lands second instead of second-to-last and Þórður sorts among
 the T's.
 
-### One row says Edge 153 sorts Icelandic correctly. One row is not a finding.
+### Edge on Windows sorts Icelandic correctly. Chrome on the same engine does not.
 
-On 2026-09-08 a report arrived from **Edge 153 on Windows** whose dates resolved
-`en-GB` — the ordinary desktop failure — but which **got the sort right**, the
-only desktop Chromium row so far to pass that check.
+This began as one row on 2026-09-08 and was written up as "one row is not a
+finding". A second arrived at a different major within the hour, and each has a
+same-engine Chrome counterpart on the same operating system:
 
-The check is not weak: those ten names come out in a demonstrably different
+| Windows | engine, as recorded | dates | sort |
+|---|---|---|---|
+| Chrome 152 | `Chromium 152` | `en-US` | **fails** |
+| **Edge 152** | `Chromium 152` | `en-US` | **passes** |
+| Chrome 153 | `Chromium 153` | `en-US` | **fails** |
+| **Edge 153** | `Chromium 153` | `en-GB` | **passes** |
+
+Two further `Chrome 152 / Windows` rows fail `sort` the same way but predate the
+engine column and read empty there, so they are left out of a table whose whole
+point is the engine. Nothing turns on them: for Chrome the family number *is*
+Google's Chromium number, so their engine is not in doubt — but it is inferred,
+and this table only shows what was recorded.
+
+Both Edge rows fail every other check — dates, numbers, currency, lists, all of
+it. Collation is the only thing they get right, and it is the only thing the
+Chrome rows beside them get wrong differently.
+
+**The check is not weak.** Those ten names come out in a demonstrably different
 order under `en`, `en-GB`, `en-US` and the root locale, verified against Node
-full ICU. So this is not a test that any collator would pass.
+full ICU. No collator passes it by accident.
 
-**Chrome 153 on Windows then reported, and it fails `sort`.** Same Chromium
-major, same operating system, and — recorded by the engine column added hours
-earlier for exactly this — the same `Chromium 153` engine:
+**What that rules out.** Not a Chromium version — two majors. Not the operating
+system — Chrome fails on the same one. Not the engine build — at both majors
+the `engine` column recorded the Chrome row and the Edge row as the same
+Chromium. What is left is Edge's own ICU data.
 
-| Windows, `Chromium 153` | resolved | sort |
-|---|---|---|
-| Chrome 153 | `en-US` | **fails** |
-| Edge 153 | `en-GB` | **passes** |
+**What it does not establish.** Why; whether Edge does this on macOS or Linux,
+neither of which has reported; and whether `Intl.Collator("is")` actually
+resolves to `is` there or merely behaves as though it does — the page only
+started sending the collator's resolved locale on 2026-09-08 and both Edge rows
+predate it. These are still self-submitted reports from four strangers'
+machines, not a controlled measurement. **If you have Edge, opening the page
+adds the row that settles the mechanism.**
 
-Their failing sets are otherwise **identical, check for check**. One differs,
-and it is the collation one. That rules out the obvious alternative — that
-Chromium 153 started shipping `coll_tree` for `is` — and leaves Edge's own
-build as what distinguishes them.
+**So the practical advice splits by browser**, which the top of this section did
+not previously allow for. For Chrome, and for workerd where the gap is measured
+directly, `localeCompare(_, "is")` sorts by the English alphabet and you need
+what is below. For Edge on Windows, on this evidence, sorting already works —
+while its dates and numbers still do not.
 
-It is still **one Edge report, self-submitted through a page**, and the
-paragraph above it is written from many. It is recorded here rather than acted on, because
-the honest reading is that formatting data and collation data are different ICU
-trees — `curr_tree`, the date trees, and `coll_tree` are separate entries in the
-filter this whole page is about — and a build carrying one without the others is
-entirely possible. It is what the Android rows already show one tree over.
+### Three different partial data sets, not one gap
 
-**The measurement could not previously express this**, which is the part worth
-fixing rather than arguing about: the page ran a collation check but reported
-only `DateTimeFormat`'s resolved locale, so a browser with Icelandic collation
-and English dates looked identical to one with neither. Since 2026-09-08 every
-report carries `Intl.Collator("is").resolvedOptions().locale` in its own field.
-**If you have Edge, opening the page settles this.**
+Lining the measurements up, Chromium builds are not simply missing Icelandic or
+not. They are missing *different parts* of it:
 
-If it holds up, it changes the recommendation in this section for one browser
-and for no other, and this section will say so. It does not change the advice
-for workerd, where the gap is measured directly rather than inferred.
+| | dates, numbers, lists | currency | collation |
+|---|---|---|---|
+| Chrome on the desktop | ✗ | ✗ | ✗ |
+| Edge on Windows | ✗ | ✗ | **✓** |
+| the Android rows that have Icelandic | **✓** | ✗ | **✓** |
+| four desktop rows labelled Chrome | **✓** | **✓** | **✓** |
+
+Those four signatures **partition every Chromium row collected** — no row falls
+outside them and none straddles two. Two caveats the table cannot carry: one
+Android row has none of it and sits in the first line rather than the third,
+which is the unexplained Android split above; and the last line is four rows of
+which exactly one names Vivaldi in its reader's own correction, the other three
+being unattributable for the reason given earlier.
+
+Which is what the ICU filter this whole page is about would predict, and is
+easy to miss if you treat "does this browser speak Icelandic" as one question.
+`curr_tree`, `coll_tree` and the date trees are separate entries in
+`third_party/icu/filters/common.json`, and these four rows sit at four
+different points in that space.
 
 ```ts
 import { compareIs } from "intl-is/collate";
