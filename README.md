@@ -7,6 +7,16 @@ Icelandic locale data, collation, and a working recipe for the JavaScript
 code and the measurements while the approach earns production mileage in one
 application. It will go to npm when that experience exists.
 
+**It is a recipe as much as a package, and copying it is a supported way to use
+it.** For dates and numbers, hand-writing your own is a reasonable choice — the
+code is thirty lines and you can write them. What is worth taking is not the
+code but the parts that are easy to get wrong and invisible when you do: the
+CLDR values, the three traps in [`src/format.ts`](src/format.ts), and above all
+the way to check your own work (["Pin it to
+Node"](#pin-whatever-you-write-to-node) below). Copy the file, keep the tests,
+delete the rest. For **collation** the advice is the opposite: do not hand-write
+it — see [below](#collation-the-part-no-polyfill-can-fix) for why.
+
 ## The problem
 
 Chromium keeps only "the minimum locale data for non-UI languages", and
@@ -80,22 +90,38 @@ rendered dates. The manual formatters that replaced it are 1,618 B gzip for
 dates, numbers *and* collation — 119× smaller — and about 310× faster per call
 than the `toLocaleString` they replaced.
 
-The catch is that "write it by hand" is how people get Icelandic dates subtly
-wrong. So do it the way that is checkable: **pin every manual formatter to the
-CLDR rendering of the same input under Node's full ICU.** The test is the whole
-argument.
+[`src/format.ts`](src/format.ts) has the shapes we needed, and
+`formatIsNumber` beside them. Import them, or copy the file — both are fine.
+
+### Pin whatever you write to Node
+
+This is the part that matters more than the code, and the reason "write it by
+hand" is safe advice here rather than reckless. **The runtime you are developing
+in cannot tell you whether your Icelandic is right** — your Chrome is the broken
+one. Node still has the data, so Node is the oracle:
 
 ```ts
-// The oracle is Node, which still has the data the browser dropped.
+// Node full ICU renders what CLDR says. Assert against it, not against taste.
 expect(formatIsDateTimeNumeric(d)).toBe(
   d.toLocaleString("is-IS", { day: "2-digit", month: "2-digit", year: "numeric",
                               hour: "2-digit", minute: "2-digit" }),
 );
 ```
 
-Do **not** pin it with `timeZone: "UTC"` on the Intl side unless the call site
-passes one. That makes the equality true by construction and hides the bug it was
-meant to catch — it hid exactly this one for us, for one review round.
+Write that once per shape and the hand-written table stops being a guess. It is
+what catches the abbreviated months (`sep.` with a period, `maí` without), and
+it is why copying this repo's *tests* matters more than copying its code.
+
+Two ways to get the test itself wrong:
+
+- **Do not pin with `timeZone: "UTC"` on the Intl side unless the call site
+  passes one.** That makes the equality true by construction and hides the bug
+  it was meant to catch. It hid exactly this one from us for a review round: the
+  date+time shapes were reading UTC parts where the calls they replaced read the
+  viewer's, which matched perfectly in Reykjavík and diverged in 19 of 49
+  comparisons in `Europe/Copenhagen`.
+- **Run the suite in more than one time zone.** `TZ=Europe/Copenhagen npm test`
+  costs nothing and is the only thing that would have caught the above.
 
 ### Server-rendered pages: the two halves must agree
 
