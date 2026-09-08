@@ -16,6 +16,14 @@ PATH). The gap did not move between workerd 1.20260820.1 and 1.20260826.1.
 | ru | декабрь | понедельник | one/few/many/many/one/one | 1 234 567,89 | 2 дня назад | a, b и c | ru |
 | tl | Disyembre | Lunes | one/one/one/one/one/one | 1,234,567.89 | 2 araw ang nakalipas | a, b, at c | fil |
 
+**`one` and `other` in that column are CLDR category keywords, not text.**
+`PluralRules.select()` returns the same English identifiers in every locale —
+Icelandic has `one`/`other`, Polish has `one`/`few`/`many`/`other` — and the
+caller maps them to its own wording. The Icelandic row is the interesting one:
+English answers `other` for 21 and Icelandic answers `one`, which is why it is
+"21 bíll" and not "21 bílar". That difference is the proof the Icelandic rules
+really are present in a runtime where nothing else Icelandic is.
+
 Only `is` is broken, and only PluralRules is right for it. Chrome 152 (headless
 probe) shows the identical row. Collation resolves to the same order in every
 locale because workerd's ICU has no collation tailoring at all.
