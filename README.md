@@ -47,7 +47,7 @@ Measured 2026-09-05 on bare workerd and Chrome 152: for `is`,
 |---|---|---|
 | what it is | load formatjs's CLDR data for `is` | render Icelandic from a month table and a few string joins |
 | browser cost | **191,966 B gzip**, Chromium visitors only | **1,618 B gzip**, everyone |
-| speed | 30,474 ns per `toLocaleString` call | 98 ns |
+| speed | ~800 ns with the formatter reused; **~28,000 ns** per `toLocaleString` call that passes an options object | ~80 ns |
 | covers collation | **no — no Collator polyfill exists** | yes |
 | covers arbitrary locales and options | yes | no, only the shapes you write |
 
@@ -87,8 +87,16 @@ The obvious move is to load the same data in the browser behind a
 it behind a flag, measured it, and **turned it off**: 191,966 B gzip, most of it
 the time-zone table `@formatjs/intl-datetimeformat` needs, to fix a handful of
 rendered dates. The manual formatters that replaced it are 1,618 B gzip for
-dates, numbers *and* collation — 119× smaller — and about 310× faster per call
-than the `toLocaleString` they replaced.
+dates, numbers *and* collation — 119× smaller.
+
+They are also faster, but read that claim carefully rather than off the table
+above. `toLocaleString(locale, options)` costs ~28 µs because it builds a
+formatter on nearly every call; the same call **without** an options object is
+~930 ns, and a hoisted `Intl.DateTimeFormat` you reuse is ~816 ns. So against
+the code we actually replaced — 35 call sites that all passed options — manual
+is roughly 350× faster, and against a reader who caches their formatter
+properly it is about 10×. Both are real; only the first is dramatic, and it is
+dramatic because of a pattern that is easy to fix without any of this.
 
 [`src/format.ts`](src/format.ts) has the shapes we needed, and
 `formatIsNumber` beside them. Import them, or copy the file — both are fine.

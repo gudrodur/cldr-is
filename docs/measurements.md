@@ -77,15 +77,33 @@ At this ratio that does not change the conclusion, but it is the honest framing.
 Date formatting, 200 000 iterations, Node full ICU — the case that *favours*
 `Intl`, since in a Chromium browser it is both slower and wrong:
 
-| | ns/op | ops/s |
-|---|---|---|
-| manual `formatIsDateTimeNumeric` | **98** | 10,225,512 |
-| `Intl.DateTimeFormat`, formatter reused | 860 | 1,162,555 |
-| `Intl.DateTimeFormat` constructed per call | 30,567 | 32,715 |
-| `date.toLocaleString("is-IS", opts)` | 30,474 | 32,814 |
+| | ns/op |
+|---|---|
+| manual `formatIsDateTimeNumeric` | **76–98** |
+| `Intl.DateTimeFormat`, formatter reused | 816–860 |
+| `date.toLocaleDateString("is-IS")` — no options | 581 |
+| `date.toLocaleString("is-IS")` — no options | 928 |
+| `date.toLocaleString("is-IS", opts)` — hoisted options object | 28,290 |
+| `date.toLocaleString("is-IS", opts)` — fresh object literal | 28,513 |
+| `new Intl.DateTimeFormat(...)` constructed per call | 30,567 |
 
-The last row is what the application actually had at 35 call sites, so the
-replacement is ~310× faster per call, not 9×.
+**The 28 µs is specific to passing an options object, and that is the honest
+caveat on this table.** V8 caches the no-options formatter per locale, so a bare
+`toLocaleDateString(locale)` is ~581 ns; the moment an options object appears the
+cache is missed and a formatter is built almost every call. Object identity does
+not help — hoisting the options constant changed nothing (28,290 vs 28,513 ns).
+
+So the comparison depends on which code you mean:
+
+- versus what this application actually had — 35 call sites, all passing options
+  — manual is roughly **350×** faster;
+- versus a reader who hoists and reuses an `Intl.DateTimeFormat` — about **10×**;
+- versus a bare no-options call — about **7×**.
+
+All three are real. Quoting only the first would be quoting the worst case as if
+it were the case, and the first is large mostly because of a call pattern that
+can be fixed without adopting anything here. Figures are Node 24 on one machine
+and drift a few per cent between runs; treat them as orders of magnitude.
 
 Sorting, same machine:
 
