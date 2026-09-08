@@ -43,6 +43,15 @@ describe("docs/reference.json is current", () => {
     expect(plural.cldr).toBe("one");
   });
 
+  it("keeps every case id reportable", () => {
+    // The collector filters incoming case ids against /^[a-z0-9-]{1,40}$/ and
+    // silently drops anything else — an id with an underscore or a capital would
+    // vanish from every report with no error anywhere. Pin the two together.
+    for (const c of CASES) {
+      expect(c.id, `${c.id} would be dropped by the collector`).toMatch(/^[a-z0-9-]{1,40}$/);
+    }
+  });
+
   it("still matches what date-fns ships today", () => {
     // The one claim in this repo about a moving third party. date-fns can change
     // its Icelandic abbreviations in a patch release, and the README, the

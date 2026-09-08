@@ -56,6 +56,9 @@
            color:var(--muted); font-size:.9rem; }
   a { color:inherit; }
   .muted { color:var(--muted); }
+  .agent { margin-top: .75rem; font-size: .8rem; opacity: .7; }
+  .agent code { word-break: break-all; }
+  .small { font-size: .85rem; opacity: .75; }
 </style>
 </head>
 <body>
@@ -71,6 +74,7 @@
 <div class="verdict" id="verdict">
   <strong id="verdict-title">Checking…</strong>
   <span class="why" id="verdict-why"></span>
+  <div class="agent">Measured in: <code id="agent">…</code></div>
 </div>
 
 <h2>Every case, live</h2>
@@ -200,9 +204,26 @@ import { compareIs } from "intl-is/collate";</code></pre>
   <p>
     <a href="https://github.com/gudrodur/intl-is">gudrodur/intl-is</a> · MIT ·
     a workaround, and the measurements behind it.
-    Firefox and Node ship full ICU and are unaffected — both measured.
-    Safari is reported to as well, and this page has no Mac to check it on;
-    if you are reading this in Safari, the verdict above is the measurement.
+    Firefox, Safari and Node ship full ICU and are unaffected — all three
+    measured, Safari on 2026-09-08 by a reader who opened this page on macOS.
+  </p>
+  <p>
+    <strong>This page reports its own verdict.</strong> Opening it sends your
+    browser's user agent, the locale <code>Intl</code> resolved, and which checks
+    disagreed with CLDR to a small collector. The user agent is reduced there to
+    a <em>runtime label</em> from a fixed list — <code>Safari 18 / macOS</code> —
+    and the original string is discarded; the database also keeps Cloudflare's
+    two-letter country, and never an IP address, a cookie or any visitor id.
+    Rows are one per runtime and verdict, not one per visit, so a second visit
+    from the same browser adds nothing.
+    <a href="https://intl-is-reports.gudrodur.workers.dev/summary">Everything it
+    has is public</a>, and the reply to your own report tells you exactly what
+    was kept.
+  </p>
+  <p class="small">
+    The first version of this stored full user agents and published them here.
+    A review pointed out that a rare user agent is a visitor id whatever the
+    column is called, so it never reaches the database now.
   </p>
 </footer>
 
@@ -323,7 +344,7 @@ if (broken === 0) {
   title.textContent = "Your browser has the Icelandic data.";
   why.innerHTML =
     `All ${checked} checks match CLDR, and <code>Intl</code> resolves <code>is</code> ` +
-    `to <code>${resolved}</code>. Firefox and Node ship full ICU — measured. Your ` +
+    `to <code>${resolved}</code>. Firefox, Safari and Node ship full ICU — measured. Your ` +
     `visitors on Chrome and Edge are not so lucky, which is the point of this ` +
     `page: from here, the bug is invisible.`;
 } else {
@@ -361,6 +382,41 @@ if (stale.length > 0) {
     `verified answer for ${stale.length === 1 ? "it" : "them"}, so nothing here would be ` +
     `an honest comparison. Run <code>npm run measure</code> and commit the result.`;
   document.querySelector("#cases").before(warning);
+}
+
+// A screenshot of this page is how its measurements arrive — the Safari result
+// came in exactly that way. So the page has to say WHICH browser produced the
+// verdict, or the screenshot is a result with no subject. That report cost us a
+// version number we now cannot recover.
+document.getElementById("agent").textContent = navigator.userAgent;
+
+// Send the verdict back, so a runtime nobody here owns can still be measured.
+// The Safari result arrived as a screenshot in a chat and its version is gone
+// forever; this is that, without asking anyone for a screenshot.
+//
+// What goes: the user agent, the locale Intl resolved, how many checks ran and
+// how many disagreed with CLDR, and which ones. What does not: any IP address,
+// cookie or visitor id — the Worker stores none, and there is nothing here to
+// store one with. The whole collection is public at /summary.
+try {
+  const failing = CASES.filter((c) => {
+    const expected = byId.get(c.id);
+    if (!expected) return false;
+    try {
+      return c.run() !== expected.cldr;
+    } catch {
+      return true;
+    }
+  }).map((c) => c.id);
+  void fetch("https://intl-is-reports.gudrodur.workers.dev/report", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ userAgent: navigator.userAgent, resolved, checked, broken, failing }),
+    // Nothing on this page depends on the report landing.
+    keepalive: true,
+  }).catch(() => {});
+} catch {
+  /* reporting must never break the page it is measuring */
 }
 
 document.getElementById("provenance").textContent =
