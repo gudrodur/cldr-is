@@ -194,7 +194,9 @@ import { compareIs } from "intl-is/collate";</code></pre>
   <p>
     <a href="https://github.com/gudrodur/intl-is">gudrodur/intl-is</a> · MIT ·
     a workaround, and the measurements behind it.
-    Firefox, Safari and Node ship full ICU and are unaffected.
+    Firefox and Node ship full ICU and are unaffected — both measured.
+    Safari is reported to as well, and this page has no Mac to check it on;
+    if you are reading this in Safari, the verdict above is the measurement.
   </p>
 </footer>
 
@@ -315,8 +317,8 @@ if (broken === 0) {
   title.textContent = "Your browser has the Icelandic data.";
   why.innerHTML =
     `All ${checked} checks match CLDR, and <code>Intl</code> resolves <code>is</code> ` +
-    `to <code>${resolved}</code>. Firefox, Safari and Node ship full ICU. Your ` +
-    `visitors on Chrome and Edge are not so lucky — which is the point of this ` +
+    `to <code>${resolved}</code>. Firefox and Node ship full ICU — measured. Your ` +
+    `visitors on Chrome and Edge are not so lucky, which is the point of this ` +
     `page: from here, the bug is invisible.`;
 } else {
   box.className = "verdict broken";

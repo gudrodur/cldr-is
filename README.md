@@ -25,9 +25,13 @@ runtime built on Chromium's ICU inherits the gap:
 
 - **Chromium-based browsers** — Chrome, Edge, Opera, Brave, and anything else on
   the same engine: `new Date().toLocaleDateString("is", { month: "long" })`
-  returns `December`, not `desember`. **Firefox and Safari ship full ICU and are
-  not affected**, which is what makes this easy to miss: the developer testing in
-  Firefox sees Icelandic and ships English to most of their visitors.
+  returns `December`, not `desember`. **Firefox is not affected** — measured on
+  Firefox 155, every check passing on the same page where Chrome 152 fails
+  eleven of twelve. That is what makes this easy to miss: the developer testing
+  in Firefox sees Icelandic and ships English to most of their visitors. Safari
+  is reported to ship full ICU too, and it is the one runtime here nobody has
+  measured — there is no Mac in this project. Open the demo page in Safari and
+  the verdict it prints is the measurement; a report either way is welcome.
 - **Cloudflare Workers (workerd)** embeds the same ICU data, so a server-rendered
   page has the gap too. Upstream:
   [cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64), open
