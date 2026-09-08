@@ -334,6 +334,34 @@ the English alphabet:
 member list, Ævar lands second instead of second-to-last and Þórður sorts among
 the T's.
 
+### One row says Edge 153 sorts Icelandic correctly. One row is not a finding.
+
+On 2026-09-08 a report arrived from **Edge 153 on Windows** whose dates resolved
+`en-GB` — the ordinary desktop failure — but which **got the sort right**, the
+only desktop Chromium row so far to pass that check.
+
+The check is not weak: those ten names come out in a demonstrably different
+order under `en`, `en-GB`, `en-US` and the root locale, verified against Node
+full ICU. So this is not a test that any collator would pass.
+
+It is still **one report, self-submitted through a page**, and the paragraph
+above it is written from many. It is recorded here rather than acted on, because
+the honest reading is that formatting data and collation data are different ICU
+trees — `curr_tree`, the date trees, and `coll_tree` are separate entries in the
+filter this whole page is about — and a build carrying one without the others is
+entirely possible. It is what the Android rows already show one tree over.
+
+**The measurement could not previously express this**, which is the part worth
+fixing rather than arguing about: the page ran a collation check but reported
+only `DateTimeFormat`'s resolved locale, so a browser with Icelandic collation
+and English dates looked identical to one with neither. Since 2026-09-08 every
+report carries `Intl.Collator("is").resolvedOptions().locale` in its own field.
+**If you have Edge, opening the page settles this.**
+
+If it holds up, it changes the recommendation in this section for one browser
+and for no other, and this section will say so. It does not change the advice
+for workerd, where the gap is measured directly rather than inferred.
+
 ```ts
 import { compareIs } from "intl-is/collate";
 

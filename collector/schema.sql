@@ -36,10 +36,15 @@ CREATE TABLE reports (
   -- rows; three identical ones WITH `said` made one.
   said        TEXT    NOT NULL DEFAULT '',
   resolved    TEXT    NOT NULL,          -- Intl.DateTimeFormat("is").resolvedOptions().locale
+  -- Intl.Collator("is").resolvedOptions().locale, kept APART from `resolved`
+  -- above. Different ICU trees: a build can carry Icelandic collation without
+  -- Icelandic dates, and one field for both hid exactly that case for a day.
+  -- Collation is the part with no polyfill, so it is worth its own column.
+  resolved_collator TEXT NOT NULL DEFAULT '',
   checked     INTEGER NOT NULL,
   broken      INTEGER NOT NULL,
   failing     TEXT    NOT NULL,          -- JSON array of case ids
   country     TEXT,                      -- Cloudflare's two letters, nothing finer
   -- Makes a repeat visit and a flood equally free: both no-op.
-  UNIQUE (runtime, engine, language, said, resolved, checked, broken)
+  UNIQUE (runtime, engine, language, said, resolved, resolved_collator, checked, broken)
 );

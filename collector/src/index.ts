@@ -169,6 +169,24 @@ export default {
         return json({ error: "userAgent, resolved, checked and broken are required" }, 400);
       }
 
+      // What Intl.Collator resolved, kept apart from `resolved` (which is
+      // DateTimeFormat's). These are different ICU trees — `coll_tree` and the
+      // date trees — and one field for both is a conflation that hid the most
+      // interesting row this project has recorded: Edge 153 on Windows
+      // reported `en-GB` dates on 2026-09-08 while sorting Icelandic
+      // CORRECTLY, and nothing stored could say whether that was real
+      // collation data or a check too weak to tell. It is real: the English
+      // collator puts these ten names in a demonstrably different order.
+      //
+      // Collation is the part of this problem with no polyfill, so a build
+      // that has it and nothing else is exactly the case worth being able to
+      // see. Same validation as `resolved`.
+      const resolvedCollator =
+        typeof body.resolvedCollator === "string" &&
+        /^[A-Za-z0-9-]{2,35}$/.test(body.resolvedCollator)
+          ? body.resolvedCollator
+          : "";
+
       // The browser's UI language, primary subtag only. The one field that can
       // settle why two reports from the same Chrome 151 on Android disagree
       // about whether Icelandic is present — see the Android section of the
@@ -215,8 +233,8 @@ export default {
       // existed: 8 rows/second from one client, 7x D1's daily write allowance,
       // which would have taken the endpoint down for everyone.
       await env.DB.prepare(
-        `INSERT OR IGNORE INTO reports (first_seen, runtime, engine, language, said, resolved, checked, broken, failing, country)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR IGNORE INTO reports (first_seen, runtime, engine, language, said, resolved, resolved_collator, checked, broken, failing, country)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
         .bind(
           new Date().toISOString().slice(0, 10),
@@ -225,6 +243,7 @@ export default {
           language,
           said,
           resolved,
+          resolvedCollator,
           checked,
           broken,
           JSON.stringify(failing),
@@ -240,6 +259,7 @@ export default {
           runtime: runtimeLabel(rawAgent),
           engine: engineLabel(rawAgent) || null,
           language: language || null,
+          resolvedCollator: resolvedCollator || null,
           said: said || null,
           resolved,
           checked,
@@ -250,9 +270,10 @@ export default {
 
     if (url.pathname === "/summary" && request.method === "GET") {
       const { results } = await env.DB.prepare(
-        `SELECT runtime, engine, language, said, resolved, checked, broken, failing, MIN(first_seen) AS since
+        `SELECT runtime, engine, language, said, resolved, resolved_collator AS resolvedCollator,
+                checked, broken, failing, MIN(first_seen) AS since
            FROM reports
-          GROUP BY runtime, engine, language, said, resolved, checked, broken
+          GROUP BY runtime, engine, language, said, resolved, resolved_collator, checked, broken
           ORDER BY runtime, engine, said`,
       ).all();
 
