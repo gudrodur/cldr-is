@@ -11,8 +11,8 @@ problem in one comparison, and it takes ten seconds.
 
 If everything passes, the bug is invisible from where you are sitting, which is
 exactly how it reaches production. Firefox, Safari and Node ship full ICU;
-Chrome and Edge on the **desktop** do not — and on Android they appear to, which
-the page found within an hour of going up. See below.
+Chrome and Edge on the **desktop** do not. Android is unresolved and interesting
+— reports disagree with each other. See below.
 
 **Status: not published, not yet built as a package.** This repository holds the
 code and the measurements while the approach earns production mileage in one
@@ -55,28 +55,39 @@ runtime built on Chromium's ICU inherits the gap:
 Node ships full ICU and is fine — which is why Node is the right oracle to test
 against, and why a test suite can pass while production is wrong.
 
-### Android appears not to be affected, and that is a reader's finding
-
-Within an hour of the page going up, two reports arrived from Android:
+### Android is unresolved, and the reports disagree
 
 | | resolved | checks failing |
 |---|---|---|
 | Chrome 152 / Android | **`is`** | 1 of 12 — `currency` only |
 | Samsung Internet 30 / Android | **`is`** | 1 of 12 — `currency` only |
+| **Chrome 151 / Android** | `en-US` | **11 of 12** |
 | Chrome 152 / macOS, for contrast | `en-GB` | 11 of 12 |
 
-So Chromium on Android resolves `is` and formats dates, numbers, lists, relative
-time and **collation** correctly, while the same version on the desktop does
-none of it. The one thing missing is currency — which is its own ICU tree,
-`curr_tree`, and one of the four the pending Chromium change
-[crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575)
-adds. That the gap on Android is exactly one tree wide is a point in that
-change's favour from a direction nobody was looking.
+Two Android runtimes resolve `is` and get dates, numbers, lists, relative time
+and **collation** right. A third, one Chrome version older, fails exactly like
+the desktop.
 
-**Treat this as a lead rather than a result.** It comes from the collector,
-which anyone can POST to, on hardware nobody here owns; two independent runtimes
-agreeing is suggestive and not proof. If you have an Android device, opening the
-page is the confirmation.
+This section said "Android appears not to be affected" for about an hour, on the
+strength of the first two rows, and the third arrived and made that wrong. Two
+agreeing reports were not enough to generalise from and it should not have been
+written as though they were.
+
+What the three rows will support: **something varies on Android that does not
+vary on the desktop**, and the candidates are the Chrome version (151 against
+152) and the device — a phone set to Icelandic may be pulling different data,
+which is not something the desktop build does. Nothing here distinguishes them.
+
+The one failing check on the two that pass is worth keeping in view whatever the
+explanation turns out to be: `currency` is its own ICU tree, `curr_tree`, and it
+is one of the four the pending Chromium change
+[crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575)
+adds for `is`. A build that is one tree short of correct is a strange coincidence
+if these locales are simply absent.
+
+**More Android reports would settle it**, and they are the cheapest evidence
+available: open the page on a phone. Note the version and the system language if
+you do.
 
 ### Being Chromium is not the same as being broken: Vivaldi
 
