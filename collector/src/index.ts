@@ -51,6 +51,21 @@ export const FAMILIES: Array<[string, RegExp]> = [
   // it implies is not the one running.
   ["Chrome", /CriOS\/(\d+)/],
   ["Firefox", /FxiOS\/(\d+)/],
+  // Android WebView, which is a DIFFERENT APK from Chrome and renders every
+  // in-app browser we have seen. Google's convention is a `; wv)` token in the
+  // platform section; the `Chrome/<major>` that follows is the Chromium build,
+  // not the Chrome app.
+  //
+  // This was found by a reader, not by us. Their report arrived labelled
+  // `Chrome 151 / Android` and would have been indistinguishable from Chrome if
+  // they had not typed "Messenger browser" into the correction box — the same
+  // way Vivaldi was found. Calling a WebView "Chrome" is assigning an identity
+  // the row cannot carry.
+  //
+  // It matters for the open Android question: WebView ships separately from
+  // Chrome, so a Chrome-app-specific data path would not explain a WebView
+  // having Icelandic. One does.
+  ["WebView", /;\s*wv\)[^]*?Chrome\/(\d+)/],
   ["Chrome", /Chrome\/(\d+)/],
   // iOS and iPadOS put a build token between the version and the word Safari
   // — "Version/26.0 Mobile/15E148 Safari/604.1" — so an anchored " Safari"
@@ -106,7 +121,61 @@ export function runtimeLabel(userAgent: string): string {
       break;
     }
   }
+  // An unrecognised browser running inside a known app is a WebView, and on iOS
+  // that is the ONLY shape a Meta in-app browser has: Facebook, Messenger and
+  // Instagram all send `Mobile/15E148` with no `Version/… Safari` and no
+  // `CriOS/`, so every one of them landed in `other`. Android says `; wv)` and
+  // is caught above; iOS says nothing at all, and the app token is the only
+  // evidence there is.
+  //
+  // No version, because none is offered — the string carries the APP's version
+  // (`FBAV/`), never the engine's, and inventing one from `FBSV/` (the iOS
+  // release) would be a fabrication of exactly the kind this table exists to
+  // avoid. `WebView / iOS` with an empty version is the honest label.
+  //
+  // Deliberately narrow: this only fires when the family table failed AND an
+  // app was recognised. An unknown browser with no app stays `other`, so the
+  // `unlabelled` counter in /summary keeps meaning "extend the family table".
+  if (family === "other" && appLabel(userAgent)) family = "WebView";
   return `${family}${version ? " " + version : ""} / ${platform}`;
+}
+
+// The app doing the embedding, when the browser is an in-app one.
+//
+// A reader's Messenger report on 2026-09-08 arrived labelled `Chrome 151 /
+// Android` and only said Messenger because they typed it. The user agent said
+// so too — `[FB_IAB/MESSENGER;…]` — and we discarded it. That is the third
+// field in one day whose absence was left for prose to argue about.
+//
+// It is its own axis, not part of the runtime label. `WebView 151 / Android`
+// says what is rendering; this says which app it is rendering inside. Folding
+// them into one string would lose the ability to compare a Messenger WebView
+// with a plain Chrome on the same engine, which is exactly the comparison the
+// Android question needs.
+//
+// A hand-written table about someone else's strings is a guess that looks like
+// a fact — this file has been wrong four times that way already — so it is
+// pinned in the tests and anything unmatched stays EMPTY rather than being
+// guessed at. An app name is low entropy (these are among the most installed
+// apps on earth) and carries far less than the user agent it replaces.
+export const IN_APP: Array<[string, RegExp]> = [
+  ["Messenger", /FB_IAB\/MESSENGER|FBAN\/MessengerFor/],
+  ["Facebook", /FB_IAB\/FB4A|FBAN\/FBIOS|\bFBAV\//],
+  ["Instagram", /\bInstagram\b/],
+  ["TikTok", /\bmusical_ly\b|\bTikTok\b|BytedanceWebview/],
+  ["Snapchat", /\bSnapchat\b/i],
+  ["WeChat", /MicroMessenger/],
+  ["LINE", /\bLine\/\d/],
+  ["LinkedIn", /LinkedInApp/],
+  ["X", /\bTwitter(?:Android|ForiPhone)?\b/],
+  ["Google app", /\bGSA\/\d/],
+  ["Pinterest", /\bPinterest(?:Android|ForiOS)?\b/],
+  ["Slack", /\bSlack(?:App)?\//],
+];
+
+export function appLabel(userAgent: string): string {
+  for (const [name, pattern] of IN_APP) if (pattern.test(userAgent)) return name;
+  return "";
 }
 
 // The engine version, separately, because the family version is not it.
@@ -248,13 +317,14 @@ export default {
       // existed: 8 rows/second from one client, 7x D1's daily write allowance,
       // which would have taken the endpoint down for everyone.
       await env.DB.prepare(
-        `INSERT OR IGNORE INTO reports (first_seen, runtime, engine, language, said, resolved, resolved_collator, checked, broken, failing, country)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR IGNORE INTO reports (first_seen, runtime, engine, app, language, said, resolved, resolved_collator, checked, broken, failing, country)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
         .bind(
           new Date().toISOString().slice(0, 10),
           runtimeLabel(rawAgent),
           engineLabel(rawAgent),
+          appLabel(rawAgent),
           language,
           said,
           resolved,
@@ -273,6 +343,7 @@ export default {
         stored: {
           runtime: runtimeLabel(rawAgent),
           engine: engineLabel(rawAgent) || null,
+          app: appLabel(rawAgent) || null,
           language: language || null,
           resolvedCollator: resolvedCollator || null,
           said: said || null,
@@ -285,11 +356,11 @@ export default {
 
     if (url.pathname === "/summary" && request.method === "GET") {
       const { results } = await env.DB.prepare(
-        `SELECT runtime, engine, language, said, resolved, resolved_collator AS resolvedCollator,
+        `SELECT runtime, engine, app, language, said, resolved, resolved_collator AS resolvedCollator,
                 checked, broken, failing, MIN(first_seen) AS since
            FROM reports
-          GROUP BY runtime, engine, language, said, resolved, resolved_collator, checked, broken
-          ORDER BY runtime, engine, said`,
+          GROUP BY runtime, engine, app, language, said, resolved, resolved_collator, checked, broken
+          ORDER BY runtime, engine, app, said`,
       ).all();
 
       const totals = await env.DB.prepare(
@@ -307,7 +378,8 @@ export default {
         note:
           "Reports from https://gudrodur.github.io/intl-is/. The database stores a runtime label " +
           "(browser family, major version, coarse platform), the engine version where the user agent " +
-          "states one, the browser UI language as a bare language code, the resolved locale, the check counts, " +
+          "states one, the embedding app when the browser is an in-app one, the browser UI language as a " +
+          "bare language code, the resolved locale, the check counts, " +
           "which checks failed, and Cloudflare's two-letter country. It never receives or stores the " +
           "full user agent, an IP address, a cookie or any visitor id. `said` is free text a reader " +
           "typed and is republished here verbatim. One row per runtime, typed name and verdict.",
@@ -334,6 +406,15 @@ export default {
           "could say why. The ordered navigator.languages list is deliberately NOT collected; it " +
           "is close to a visitor id. Rows first seen before 2026-09-08 read empty and cannot be " +
           "backfilled, so the question is answered by NEW Android reports or not at all.",
+        appNote:
+          "`app` names the application an in-app browser is running inside — Messenger, Instagram, " +
+          "TikTok — read from the tokens those apps append to the user agent. It is its own field " +
+          "and not part of `runtime`, which says what is RENDERING: an in-app browser on Android is " +
+          "`WebView`, a different APK from Chrome, and on iOS it is WebKit like everything else. " +
+          "Empty means either an ordinary browser or an app whose token this hand-written table " +
+          "does not know; it is never guessed. Added 2026-09-08 after a reader\'s Messenger report " +
+          "was stored as plain `Chrome 151 / Android` — the user agent said MESSENGER and the " +
+          "collector threw it away. Rows before that date read empty and cannot be backfilled.",
         iosNote:
           "Every `/ iOS` row measures Apple's WebKit whatever the browser name says — Apple requires " +
           "it — so `Firefox … / iOS` is not a Gecko result and `Chrome … / iOS` is not a Chromium one.",

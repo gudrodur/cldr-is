@@ -244,8 +244,10 @@ import { compareIs } from "intl-is/collate";</code></pre>
     disagreed with CLDR to a small collector. The user agent is reduced there to
     a <em>runtime label</em> from a fixed list — <code>Safari 18 / macOS</code> —
     plus the engine version when the string states one — <code>Chromium 152</code>,
-    which every Chromium browser carries whatever it calls itself — and the
-    original string is discarded. It sends two resolved locale tags rather than
+    which every Chromium browser carries whatever it calls itself — and, if you
+    opened this from inside an app, that app's name (<code>Messenger</code>,
+    <code>Instagram</code>) from the token it appends. The original string is
+    discarded. It sends two resolved locale tags rather than
     one — what <code>DateTimeFormat</code> resolved and what
     <code>Collator</code> resolved, because a build can carry Icelandic
     collation without Icelandic dates. It also sends your browser's UI language
