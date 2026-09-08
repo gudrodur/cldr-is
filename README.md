@@ -45,7 +45,7 @@ runtime built on Chromium's ICU inherits the gap:
   Android result is a reason to stop assuming rather than to assume the other
   way. If you use one, the demo page will tell you in a second. **Firefox is not affected** — every
   Gecko row reported so far passes all twelve, across Linux, Windows, macOS and
-  Android and across three majors, on the same page where Chrome 152 fails
+  Android, and on every version anyone has reported, on the same page where Chrome 152 fails
   eleven of twelve. (The `Firefox … / iOS` row is not one of them: it is WebKit,
   see below.) That is what makes this easy to miss: the developer testing
   in Firefox sees Icelandic and ships English to most of their visitors. **Safari

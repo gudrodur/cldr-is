@@ -157,3 +157,38 @@ itself on measurement is its own kind of defect.
 
 "I could not verify this" is a result. It is more useful than a plausible
 substitute, and it tells a reader exactly how far to trust the rest.
+
+## 13. A count about a live dataset decays; a shape does not
+
+This rule cost four corrections in one afternoon, three of them made *after*
+writing the previous one down, and one inside the very commit that explained the
+problem. It is the most-repeated mistake in this repository's history.
+
+The README describes a table that strangers append to by opening a page. Every
+count written into it — "three browsers agree", "six Android rows", "four
+desktop rows", "across three majors" — was accurate when typed and wrong within
+the hour. Nothing failed. No test went red. The document simply became false
+while everyone's attention was elsewhere, which is the worst available failure
+mode: silent, and invisible to the whole test suite.
+
+**The distinction that matters is not accuracy, it is what new data does to the
+claim:**
+
+- A claim new data can **falsify** is fine, and is the entire point of
+  collecting any. *"Every Gecko row passes all twelve"* is a real assertion that
+  one failing row would destroy, and it should be written exactly that boldly.
+- A claim new data merely makes **stale** is a maintenance burden assigned to
+  nobody. *"Three browsers agree"* is not refuted by a fourth agreeing — it is
+  just quietly wrong, and it is wrong in the direction of understating your own
+  evidence.
+
+So state the shape and let the endpoint carry the arithmetic: "every Chromium
+family that has reported from Android", "several desktop rows", "on every
+version anyone has reported". Where a table is genuinely useful, date it
+explicitly as a snapshot and link the live source beside it.
+
+**The exception is measurements of fixed artefacts**, and it is not a small one
+— 707,603 B gzipped, 12.7% of Latin pairs, 81,200 bytes of `icudtl.dat`. Those
+are properties of a file that will read the same next year, and hedging them
+would throw away the precision that makes them worth having. The test is whether
+anyone can change the number by opening a web page.
