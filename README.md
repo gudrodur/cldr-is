@@ -3,6 +3,40 @@
 Icelandic locale data, collation, and a working recipe for the JavaScript
 `Intl` API on runtimes that ship without it.
 
+> ## Scope correction, 2026-09-08
+>
+> **This README overstated the browser problem, and its own crowd data is what
+> narrowed it.** Read this before the tables below, which were written first.
+>
+> The headline said "Chromium". Every report collected says **desktop Chrome and
+> Edge** — and nothing else
+> ([the live count is here](https://intl-is-reports.gudrodur.workers.dev/summary),
+> because a number typed into this file would be stale by tomorrow):
+>
+> | | fails |
+> |---|---|
+> | Chrome on the desktop | 11 of 12 checks |
+> | Edge on the desktop | 10 of 12 |
+> | **every Chromium browser on Android** | **1 of 12 — the currency symbol** |
+> | Firefox, Safari, everything on iOS, Node | **nothing** |
+>
+> So on mobile this is one symbol: `2.500 ISK` where CLDR says `2.500 kr.`. It
+> is real, it is worth fixing, and it is not what this document spent its first
+> thousand lines implying.
+>
+> **The part that is not a browser problem at all is the one that matters most.**
+> Cloudflare Workers (`workerd`) resolves `is` to `en-US` for dates, numbers,
+> lists, relative time and collation. A server-rendered page therefore ships
+> English formatting to **every visitor — every browser, every device, 100% of
+> traffic**, and no amount of the visitor having Firefox helps. Polish, Spanish,
+> Ukrainian and Russian all work in the same runtime; Icelandic is the one that
+> does not ([measurements](docs/measurements.md#bare-workerd-cloudflare-workers-no-polyfill)).
+>
+> **If you run SSR on Cloudflare Workers, read [On the server](#on-the-server-polyfill)
+> and you can stop there.** The browser sections below are a smaller,
+> desktop-shaped problem, and the demo page is the fastest way to see whether it
+> is yours at all.
+
 ### → [Does your browser speak Icelandic?](https://gudrodur.github.io/intl-is/)
 
 One page, twelve checks, run in whatever browser opens it and compared against
@@ -10,12 +44,12 @@ what CLDR actually says. **Open it in Chrome and in Firefox** — that is the wh
 problem in one comparison, and it takes ten seconds.
 
 If everything passes, the bug is invisible from where you are sitting, which is
-exactly how it reaches production. Firefox, Safari and Node ship full ICU;
-Chrome and Edge on the **desktop** do not — while **on Android two reports of
-the same version disagree with each other**, and every *Chromium* Android build
-that does have Icelandic is missing the same one piece of it. (Firefox on
-Android has all of it.) Readers of this page found that in an afternoon. See
-below.
+one way it reaches production — the other, and the bigger one, is the server
+(see the box above). Firefox, Safari and Node ship full ICU; Chrome and Edge on
+the **desktop** do not. On Android every Chromium build that has Icelandic is
+missing exactly one piece of it, and two reports of the same version disagree
+about whether it is there at all. (Firefox on Android has all of it.) Readers of
+this page found that in an afternoon.
 
 **Status: not published, not yet built as a package.** This repository holds the
 code and the measurements while the approach earns production mileage in one
