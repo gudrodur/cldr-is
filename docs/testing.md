@@ -219,9 +219,18 @@ The four:
 
 **The test is one question: could this row have been produced by something other
 than the thing I just called it?** If yes, name what was recorded ("rows
-labelled Chrome"), state the attribution separately with its evidence ("one
-names Vivaldi in a reader's correction"), and say plainly that the rest cannot
-be attributed. That is not hedging — it is the difference between a measurement
+labelled Chrome"), state the attribution separately with its
+evidence, and say plainly that the rest cannot be attributed.
+
+**This rule's own example was wrong when it was written.** It said to state the
+attribution as "one names Vivaldi in a reader's correction" — and an audit two
+hours later found that **no stored correction names a browser at all**. The
+closest is a reader-typed build number, `8.2.4133.47`, which is Vivaldi's and
+which identifies a build rather than a browser. The rule against attributing an
+identity a row cannot carry attributed one in its own worked example. Read that
+as the strongest evidence for the rule rather than against it: the sentence that
+felt safest was written by the person who had just spent an hour fixing four
+instances of the same defect. That is not hedging — it is the difference between a measurement
 and a guess wearing its clothes.
 
 Note what makes this one hard to catch: the wrong version is *shorter*, reads
