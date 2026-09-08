@@ -93,14 +93,16 @@ major version, same platform, opposite verdicts. Whatever decides this is not
 the Chromium version — and Icelandic on Android reaches back to at least 150,
 so there is no version at which it "arrived" either.
 
-On the desktop nothing is split the same way. Four desktop rows *labelled*
+On the desktop nothing is split the same way. Several desktop rows *labelled*
 Chrome do carry Icelandic — and they pass all twelve, not eleven, which is a
-different signature from Android's. One of the four names Vivaldi in its
-reader's own correction; the other three cannot be attributed to any browser
-from what is stored, because Vivaldi is byte-identical to Chrome in the user
-agent, the brand list and the high-entropy hints (see below). So the honest
-statement is that no row **known** to be Chrome has Icelandic, and that the
-label alone cannot settle which those are.
+different signature from Android's. Exactly one of them names Vivaldi in its
+reader's own correction; the rest cannot be attributed to any browser from what
+is stored, because Vivaldi is byte-identical to Chrome in the user agent, the
+brand list and the high-entropy hints (see below). So the honest statement is
+that no row **known** to be Chrome has Icelandic, and that the label alone
+cannot settle which those are. The live count is in
+[`/summary`](https://intl-is-reports.gudrodur.workers.dev/summary); it grows,
+which is the point.
 
 An earlier version of this section, written when 151 had reported once, said
 "whatever carries Icelandic to Android arrived in 152 and does not reach the
@@ -112,7 +114,8 @@ one — which is the same defect this project keeps finding in its own code.
 
 **What survives is sharper than what was retracted.** Every Android row that
 has Icelandic fails **exactly one check, and it is the same check every time** —
-`currency` — across four Chromium browser families. `currency` is its own ICU
+`currency` — across every Chromium browser family that has reported from
+Android. `currency` is its own ICU
 tree, `curr_tree`, and it is one of the four the pending Chromium change
 [crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575)
 adds for `is` on the desktop. Independent rows landing on one tree short of
@@ -148,8 +151,8 @@ family label, so a row like Opera's can be placed on the same axis as Chrome's
 instead of guessed at. **Every row in the table above except `Chrome 150 / Android` predates that
 column and reads empty** — the user agent is discarded before storage by design, so the
 engine version of the reports that raised the question no longer exists anywhere
-to be recovered. That is why this section says "four browser families" and not
-"N Chromium versions": the version axis is exactly what these rows cannot speak
+to be recovered. That is why this section counts browser families and not
+Chromium versions: the version axis is exactly what these rows cannot speak
 to. They need re-reporting, not repairing.
 
 ### Being Chromium is not the same as being broken: Vivaldi
@@ -399,20 +402,20 @@ not. They are missing *different parts* of it:
 | Chrome on the desktop | ✗ | ✗ | ✗ |
 | Edge on Windows | ✗ | ✗ | **✓** |
 | the Android rows that have Icelandic | **✓** | ✗ | **✓** |
-| four desktop rows labelled Chrome | **✓** | **✓** | **✓** |
+| desktop rows labelled Chrome that pass | **✓** | **✓** | **✓** |
 
 Those four signatures **partition every Chromium row collected** — no row falls
 outside them and none straddles two. Two caveats the table cannot carry: one
 Android row has none of it and sits in the first line rather than the third,
-which is the unexplained Android split above; and the last line is four rows of
-which exactly one names Vivaldi in its reader's own correction, the other three
-being unattributable for the reason given earlier.
+which is the unexplained Android split above; and of the rows on the last line
+exactly one names Vivaldi in its reader's own correction, the rest being
+unattributable for the reason given earlier.
 
 Which is what the ICU filter this whole page is about would predict, and is
 easy to miss if you treat "does this browser speak Icelandic" as one question.
 `curr_tree`, `coll_tree` and the date trees are separate entries in
-`third_party/icu/filters/common.json`, and these four rows sit at four
-different points in that space.
+`third_party/icu/filters/common.json`, and these four signatures sit at
+four different points in that space.
 
 ```ts
 import { compareIs } from "intl-is/collate";
