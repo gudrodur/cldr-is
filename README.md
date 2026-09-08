@@ -318,17 +318,33 @@ workerd release.
 
 ## Do not wait for the upstream fix
 
-This is a workaround, and the honest reading of the evidence is that it is a
-**permanent** one. An earlier version of this README said "if you can help
-either along, do that instead of installing this". That was optimism, not a
-reading of the threads.
+Use this today. But the reason to use it is not the one an earlier version of
+this README gave, and the difference matters if you were about to give up.
 
-**Chromium's exclusion is policy, not an oversight.**
+**On Chromium, the fix is written. It has been waiting on review since 2023.**
+
+- The request: [issues.chromium.org/40624456](https://issues.chromium.org/issues/40624456),
+  open since April 2019 — seven years, 48 comments, 158 stars.
+- The fix: [crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575),
+  "Add `is` to common.json", uploaded by a Chromium engineer in May 2023,
+  rebased that August, still `NEW`. It adds `is` to `curr_tree`, **`coll_tree`**,
+  `unit_tree` and `zone_tree` — collation included.
+
+The last substantive word on that CL is from October 2023: *"This will increase
+the data 60K for every users. Is this what Chrome team PM decide to increase the
+locale support?"* Nobody has answered it since.
+
+So this is **not** a refusal, and not quite the policy wall this README used to
+describe. The filter rule is real —
 [`filters/common.json`](https://chromium.googlesource.com/chromium/deps/icu/+/refs/heads/main/filters/common.json)
-says *"Keep only the minimum locale data for non-UI languages"*, and the
-qualifying condition is whether Chrome's own UI is translated into the language
-— not whether the language is used on the web. Icelandic does not qualify and is
-not going to start qualifying because a website asked.
+keeps *"only the minimum locale data for non-UI languages"*, and the qualifying
+condition is whether Chrome's own UI is translated, not whether the language is
+used on the web. But a patch exists that would move Icelandic out of that list,
+and what is blocking it is one unanswered question about roughly 60 KB.
+
+Which is why the Vivaldi measurement above is worth having: a shipping Chromium
+already carries Icelandic, and the whole difference is **81,200 bytes**. That
+number is now posted on both threads.
 
 **workerd#64 is not a refusal. It is silence, which is worse.**
 [cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64) was
@@ -353,14 +369,25 @@ should remain available. Deprioritised P2 → P5, to revisit "once we have ICU4X
 
 That is the whole thing in one comparison: two vendors looked at the same couple
 of megabytes of locale data and reached opposite conclusions, and that is why
-your Icelandic dates work in Firefox and not in Chrome. It is a values split, not a technical
-inevitability — and a values split does not get resolved by filing a bug.
+your Icelandic dates work in Firefox and not in Chrome. It is a values split
+rather than a technical inevitability.
 
-The one thing worth watching is **ICU4X**, which both threads independently
-point at: the workerd reporter ("I'm starting to understand why the Unicode
-Consortium is pushing ICU4X") and Mozilla's own resolution. Data loaded on
-demand per locale is the shape that makes this question go away, rather than the
-shape that makes someone choose which languages are worth 1.8 MB.
+**So why still not wait?** Not because nobody has asked — they have, for seven
+years, and the patch is written. Because none of the three threads is blocked on
+anything a user can supply. Chromium's needs a product decision, workerd's needs
+a maintainer to look at it again, and Mozilla's is waiting on ICU4X. Filing
+another bug adds nothing to any of them; the useful contribution is a
+measurement, which is why the Vivaldi figure went on the two live threads rather
+than into a new issue.
+
+Two things worth watching. The near one is
+[crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575)
+— if it lands, Chrome's half of this problem ends, collation included. The far
+one is **ICU4X**, which both threads independently point at: the workerd
+reporter ("I'm starting to understand why the Unicode Consortium is pushing
+ICU4X") and Mozilla's own resolution. Data loaded on demand per locale is the
+shape that makes this question go away, rather than the shape that makes someone
+choose which languages are worth 1.8 MB.
 
 ## License
 
