@@ -59,6 +59,8 @@
   .agent { margin-top: .75rem; font-size: .8rem; opacity: .7; }
   .agent code { word-break: break-all; }
   .small { font-size: .85rem; opacity: .75; }
+  .said { display:block; margin-top:.6rem; font-size:.8rem; line-height:1.5; }
+  .said input { margin:0 .4rem; padding:.15rem .4rem; font:inherit; }
 </style>
 </head>
 <body>
@@ -74,7 +76,16 @@
 <div class="verdict" id="verdict">
   <strong id="verdict-title">Checking…</strong>
   <span class="why" id="verdict-why"></span>
-  <div class="agent">Measured in: <code id="agent">…</code></div>
+  <div class="agent">
+    Measured in: <code id="agent">…</code>
+    <label class="said">
+      Wrong? Some browsers are byte-identical to Chrome here — Vivaldi is, in the
+      user agent, the brand list and the high-entropy hints alike. Say which:
+      <input id="said" type="text" maxlength="40" placeholder="e.g. Vivaldi 8.2.4" autocomplete="off">
+      <button id="said-send" type="button">Send</button>
+      <span id="said-done"></span>
+    </label>
+  </div>
 </div>
 
 <h2>Every case, live</h2>
@@ -408,13 +419,29 @@ try {
       return true;
     }
   }).map((c) => c.id);
-  void fetch("https://intl-is-reports.gudrodur.workers.dev/report", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ userAgent: navigator.userAgent, resolved, checked, broken, failing }),
-    // Nothing on this page depends on the report landing.
-    keepalive: true,
-  }).catch(() => {});
+  const send = (said) =>
+    fetch("https://intl-is-reports.gudrodur.workers.dev/report", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userAgent: navigator.userAgent, said, resolved, checked, broken, failing }),
+      // Nothing on this page depends on the report landing.
+      keepalive: true,
+    }).catch(() => {});
+
+  void send(null);
+
+  // Detection cannot separate every runtime — measured, not assumed — so the
+  // reader gets to correct it. One extra row, and the better of the two.
+  const saidInput = document.getElementById("said");
+  const saidButton = document.getElementById("said-send");
+  saidButton.addEventListener("click", () => {
+    const value = saidInput.value.trim().slice(0, 40);
+    if (!value) return;
+    void send(value);
+    saidInput.disabled = true;
+    saidButton.disabled = true;
+    document.getElementById("said-done").textContent = " thank you — recorded as " + value;
+  });
 } catch {
   /* reporting must never break the page it is measuring */
 }
