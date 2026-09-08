@@ -395,7 +395,7 @@ directly, `localeCompare(_, "is")` sorts by the English alphabet and you need
 what is below. For Edge on Windows, on this evidence, sorting already works —
 while its dates and numbers still do not.
 
-### Confirmed locally: Edge ships Icelandic collation and nothing else
+### Confirmed locally, and it is not Windows-specific
 
 The two Edge rows above are self-reports from Windows. On 2026-09-08 the same
 thing was measured directly, on this machine, on **Linux** — which also settles
@@ -470,6 +470,29 @@ restored the auxiliary trees broadly: `coll` 99 → 132 locales, `curr` 310 → 
 `region` 267 → 324, `unit` 261 → 326, `zone` 267 → 330. What it left alone, for
 every non-UI language, is the root bundle. Whatever the rule inside Microsoft
 is, it is not "add Icelandic".
+
+**And Edge ships 41,904 bytes of Icelandic that nothing can ask for.** Asking
+each `Intl` service directly, on Edge 152:
+
+| `supportedLocalesOf(["is"])` | Edge 152 | Chrome 152 |
+|---|---|---|
+| `Intl.Collator` | **`["is"]`** | `[]` |
+| `Intl.DateTimeFormat` | `[]` | `[]` |
+| `Intl.NumberFormat` | `[]` | `[]` |
+| `Intl.DisplayNames` | `[]` | `[]` |
+| `Intl.ListFormat` | `[]` | `[]` |
+| `Intl.RelativeTimeFormat` | `[]` | `[]` |
+
+Collation is the only one of six services that can negotiate `is` at all. Yet
+`curr/is.res`, `zone/is.res`, `unit/is.res` and `region/is.res` are all in the
+file, byte-identical to Vivaldi's, and together they are 41,904 bytes that no
+API can reach — because the services that would read them refuse the locale
+before they get there.
+
+So the comparison that matters is not how much Icelandic a build carries but
+whether the locale is available to the service that needs it: **Vivaldi spends
+9,280 bytes more than Edge on the root bundle and every service works; Edge
+spends 65,968 bytes on Icelandic and one service does.**
 
 **Reproduce it:** the entry names are plain ASCII in the package TOC, so
 `strings icudtl.dat | grep 'is\.res'` gets you the presence table with no tools
