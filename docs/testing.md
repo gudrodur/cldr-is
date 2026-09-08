@@ -224,9 +224,15 @@ evidence, and say plainly that the rest cannot be attributed.
 
 **This rule's own example was wrong when it was written.** It said to state the
 attribution as "one names Vivaldi in a reader's correction" — and an audit two
-hours later found that **no stored correction names a browser at all**. The
-closest is a reader-typed build number, `8.2.4133.47`, which is Vivaldi's and
-which identifies a build rather than a browser. The rule against attributing an
+hours later found that **no correction on a Chrome-labelled desktop row names a
+browser**. The closest is a reader-typed build number, `8.2.4133.47`, which is
+Vivaldi's and which identifies a build rather than a browser.
+
+That scoping matters, and the first version of this paragraph did not have it:
+it said "no stored correction names a browser at all", which a third reader
+falsified in one query — `Zen 1.21.10b / Linux` and `Messenger browser` are
+both stored corrections and both name browsers. **A rule against unscoped
+attribution acquired an unscoped universal while confessing to one.** The rule against attributing an
 identity a row cannot carry attributed one in its own worked example. Read that
 as the strongest evidence for the rule rather than against it: the sentence that
 felt safest was written by the person who had just spent an hour fixing four
