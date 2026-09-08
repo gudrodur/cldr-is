@@ -142,6 +142,44 @@ with `codePointAt` and caching each character's weight by code point is what
 closed it. A first attempt that cached by character *string* changed nothing —
 the cost was the allocation, not the lookup.
 
+## Vivaldi: the same Chromium, with Icelandic
+
+Measured 2026-09-08, both browsers on Chromium 152, on this machine, minutes
+apart, driven over CDP against their own fresh profiles.
+
+| | Vivaldi 8.2.4 | Chrome 152 |
+|---|---|---|
+| `Intl.DateTimeFormat("is").resolvedOptions().locale` | `is` | `en-US` |
+| `Intl.Collator("is").resolvedOptions().locale` | `is` | `en-US` |
+| `DateTimeFormat.supportedLocalesOf(["is"])` | `["is"]` | `[]` |
+| month `long` | `2. september 2026` | `September 2, 2026` |
+| weekday | `miðvikudagur` | `Wednesday` |
+| number | `1.234.567,89` | `1,234,567.89` |
+| currency ISK | `2.500 kr.` | `ISK 2,500` |
+| relative time | `fyrir 2 dögum` | `2 days ago` |
+| list | `a, b og c` | `a, b, and c` |
+| two-letter locales with `DateTimeFormat` data | **61** | 60 |
+| two-letter locales with `Collator` data | **54** | 53 |
+| `icudtl.dat` on disk | 10,957,760 B | 10,876,560 B |
+| Icelandic UI translation (`locales/is.pak`) | no | no |
+
+**The whole difference is one locale and 81,200 bytes** — 0.7% of the ICU data
+they both carry. Neither browser has an Icelandic UI, so Chromium's stated rule
+("keep only the minimum locale data for non-UI languages") is not what separates
+them; a downstream vendor simply declined to apply the filter that hard.
+
+Why this matters beyond a browser recommendation: every argument against fixing
+this upstream has been about size, and the number always quoted — ~10 MB to
+~30 MB — is for swapping in the *entire* full-ICU data file, and was never
+measured by anyone (see below). Nobody had measured the cost of **one** locale.
+It is 81,200 bytes, and a shipping Chromium browser already pays it.
+
+Found because a reader of the demo page said "Vivaldi uses Chromium and we still
+speak Icelandic there". The README had claimed "Chrome, Edge, Opera, Brave, and
+anything else on the same engine", which was asserted rather than measured — the
+same class of defect as the Safari claim beside it. Opera and Brave are still
+unmeasured and the README now says so.
+
 ## Correctness
 
 Manual output pinned against Node full ICU, character for character:

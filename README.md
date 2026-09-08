@@ -23,9 +23,11 @@ Chromium keeps only "the minimum locale data for non-UI languages", and
 Icelandic is one of them because Chrome's own UI is not translated to it. Every
 runtime built on Chromium's ICU inherits the gap:
 
-- **Chromium-based browsers** — Chrome, Edge, Opera, Brave, and anything else on
-  the same engine: `new Date().toLocaleDateString("is", { month: "long" })`
-  returns `December`, not `desember`. **Firefox is not affected** — measured on
+- **Chrome and Edge** — `new Date().toLocaleDateString("is", { month: "long" })`
+  returns `December`, not `desember`. This is Chrome's *build*, not the engine:
+  see the Vivaldi measurement below, which is the same Chromium with Icelandic
+  present. Opera and Brave are almost certainly affected and have not been
+  measured here; if you use one, the demo page will tell you in a second. **Firefox is not affected** — measured on
   Firefox 155, every check passing on the same page where Chrome 152 fails
   eleven of twelve. That is what makes this easy to miss: the developer testing
   in Firefox sees Icelandic and ships English to most of their visitors. Safari
@@ -39,6 +41,35 @@ runtime built on Chromium's ICU inherits the gap:
 
 Node ships full ICU and is fine — which is why Node is the right oracle to test
 against, and why a test suite can pass while production is wrong.
+
+### Being Chromium is not the same as being broken: Vivaldi
+
+An earlier version of this README said "Chrome, Edge, Opera, Brave, and anything
+else on the same engine". A reader pointed out that Vivaldi speaks Icelandic,
+and they were right. Measured 2026-09-08 on this machine, both browsers on
+Chromium 152, minutes apart:
+
+| | Vivaldi 8.2.4 | Chrome 152 |
+|---|---|---|
+| `Intl.DateTimeFormat("is").resolvedOptions().locale` | `is` | `en-US` |
+| month `long` | `2. september 2026` | `September 2, 2026` |
+| number | `1.234.567,89` | `1,234,567.89` |
+| currency | `2.500 kr.` | `ISK 2,500` |
+| `localeCompare(_, "is")` sort | `… Ýrr, Þórður, Ævar, Örn` | `… Örn, Úlfur, Ýrr, Þórður` |
+| two-letter locales with `DateTimeFormat` data | **61** | 60 |
+| ditto with `Collator` data | **54** | 53 |
+| `icudtl.dat` | 10,957,760 B | 10,876,560 B |
+
+**One locale of difference. 81,200 bytes.** Neither ships an Icelandic UI
+translation, so this is not the "non-UI language" rule doing its job — it is a
+downstream Chromium vendor deciding the filter costs more than it saves, and
+paying 0.7% of their ICU data for it.
+
+That number is worth holding onto, because the argument against fixing this
+upstream has always been about size, and nobody had measured the size of *one
+locale*. The figure that gets quoted, ~10 MB to ~30 MB, is for swapping in the
+entire full-ICU data file, and it was never a measurement either (see the
+upstream section below).
 
 Measured 2026-09-05 on bare workerd and Chrome 152: for `is`,
 `Intl.DateTimeFormat`, `NumberFormat`, `RelativeTimeFormat`, `ListFormat` and
