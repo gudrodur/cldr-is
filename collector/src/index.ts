@@ -40,8 +40,17 @@ const FAMILIES: Array<[string, RegExp]> = [
   ["Opera", /OPR\/(\d+)/],
   ["Samsung Internet", /SamsungBrowser\/(\d+)/],
   ["Firefox", /Firefox\/(\d+)/],
+  // On iOS every browser is WebKit underneath and identifies with its own token
+  // rather than Chrome/ or Firefox/. Without these, an iPhone running Chrome
+  // lands in "other" and looks like an unknown engine when it is not.
+  ["Chrome", /CriOS\/(\d+)/],
+  ["Firefox", /FxiOS\/(\d+)/],
   ["Chrome", /Chrome\/(\d+)/],
-  ["Safari", /Version\/(\d+)[.\d]* Safari/],
+  // iOS and iPadOS put a build token between the version and the word Safari
+  // — "Version/26.0 Mobile/15E148 Safari/604.1" — so an anchored " Safari"
+  // matched macOS and dropped every iPhone into "other". Measured 2026-09-08:
+  // a real iOS report arrived labelled "other / iOS".
+  ["Safari", /Version\/(\d+)[.\d]*(?:\s+\S+)? Safari/],
   ["Node", /node\.js\/v?(\d+)/i],
 ];
 
