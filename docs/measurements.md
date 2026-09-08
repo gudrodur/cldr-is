@@ -10,7 +10,33 @@ The probe that produced the runtime table is
 `scripts/probe-worker-intl.mjs` (run with `npm run probe`; needs `wrangler` on
 PATH). The gap did not move between workerd 1.20260820.1 and 1.20260826.1.
 
-## Bare workerd (Cloudflare Workers), no polyfill
+## Bare workerd, no polyfill
+
+**Two different things were measured, and until 2026-09-08 only one of them
+had been.** The table below comes from `wrangler dev --local`, which is
+`workerd` running on this machine. The deployed Cloudflare edge is Cloudflare's
+own build of it, and writing "Cloudflare Workers (workerd)" quietly asserted the
+two were interchangeable — an unearned claim in a parenthesis, which is where
+they are easiest to miss.
+
+So a bare Worker with no polyfill was deployed to the real edge and probed
+(`intl-is-edgeprobe`, deployed and deleted 2026-09-08):
+
+| | deployed Cloudflare Worker |
+|---|---|
+| `DateTimeFormat("is")` / `NumberFormat("is")` / `Collator("is")` | all `en-US` |
+| `toLocaleDateString("is-IS", {month:"long", …})` | `September 2, 2026` |
+| `(1234567.89).toLocaleString("is-IS")` | `1,234,567.89` |
+| `{style:"currency", currency:"ISK"}` | `ISK 2,500` |
+| sorted names | `Aðalheiður, Ævar, Ásta, Ólafur, Örn, Þórður` (English order) |
+| **`PluralRules("is").select(21)`** | **`one`** — Icelandic |
+
+Identical to the local table in every respect, the surviving plural rules
+included. The inference was right; it is now a measurement, and the two rows of
+this document that said "Cloudflare Workers (workerd)" can say it because both
+were checked rather than because one was assumed to stand for the other.
+
+## Local workerd via `wrangler dev --local`, no polyfill
 
 | locale | DateTimeFormat month | weekday | PluralRules(1,2,5,11,21,101) | NumberFormat 1234567.89 | RelativeTimeFormat -2 day | ListFormat a,b,c | resolved locale |
 |---|---|---|---|---|---|---|---|

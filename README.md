@@ -25,7 +25,7 @@ Icelandic locale data, collation, and a working recipe for the JavaScript
 > thousand lines implying.
 >
 > **The part that is not a browser problem at all is the one that matters most.**
-> Cloudflare Workers (`workerd`) resolves `is` to `en-US` for dates, numbers,
+> Cloudflare Workers resolves `is` to `en-US` for dates, numbers,
 > lists, relative time and collation. A server-rendered page therefore ships
 > English formatting to **every visitor — every browser, every device, 100% of
 > traffic**, and no amount of the visitor having Firefox helps. Polish, Spanish,
@@ -99,7 +99,9 @@ runtime built on Chromium's ICU inherits the gap:
   hardware in this project, so those reports are the measurement. The first one
   arrived as a screenshot with no version in it, which is why the page records a
   runtime label now and why these two carry numbers.
-- **Cloudflare Workers (workerd)** embeds the same ICU data, so a server-rendered
+- **Cloudflare Workers** embeds the same ICU data — measured both on `workerd`
+  locally and on a bare Worker deployed to the real edge, which agree exactly —
+  so a server-rendered
   page has the gap too. Upstream:
   [cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64), open
   since 2022.
