@@ -147,3 +147,38 @@ describe("engineLabel", () => {
     expect(engineLabel("no chromium here")).toBe("");
   });
 });
+
+// Found by review, not by a report — and that is the point. `Chrome/` alone is
+// not a Chromium marker: legacy EdgeHTML Edge spoofed it, and would otherwise
+// have been stored with a fabricated engine version. Extinct since 2020, so
+// this guards a row that has never arrived rather than one that has.
+describe("engineLabel and legacy EdgeHTML", () => {
+  const EDGEHTML =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.140 Safari/537.36 Edge/18.17763";
+
+  it("refuses to call EdgeHTML a Chromium", () => {
+    expect(/Chrome\/(\d+)/.test(EDGEHTML)).toBe(true); // the trap is real
+    expect(engineLabel(EDGEHTML)).toBe("");
+  });
+
+  it("still reads Chromium Edge, which sends Edg/ and not Edge/", () => {
+    expect(
+      engineLabel(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36 Edg/153.0.0.0",
+      ),
+    ).toBe("Chromium 153");
+  });
+
+  it("still reads Edge on Android (EdgA/) and refuses Edge on iOS (WebKit)", () => {
+    expect(
+      engineLabel(
+        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Mobile Safari/537.36 EdgA/152.0.0.0",
+      ),
+    ).toBe("Chromium 152");
+    expect(
+      engineLabel(
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 EdgiOS/131.0 Mobile/15E148 Safari/604.1",
+      ),
+    ).toBe("");
+  });
+});

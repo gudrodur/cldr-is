@@ -121,10 +121,25 @@ export function runtimeLabel(userAgent: string): string {
 // Empty for everything else, and deliberately not guessed at: Gecko's `rv:`
 // tracks Firefox's own number so it adds nothing, and every iOS browser reports
 // the same frozen `AppleWebKit/605.1.15` regardless of which WebKit is running,
-// so a version there would be a fabrication. `Chrome/` never appears in an iOS
-// user agent — Chrome on iOS is `CriOS/`, Edge is `EdgiOS/` — so this cannot
-// mislabel a WebKit browser as Chromium.
+// so a version there would be a fabrication.
+//
+// `Chrome/` is NOT a reliable Chromium marker on its own, which a review caught
+// here rather than a report: **legacy EdgeHTML Edge sent
+// `… Chrome/64.0.3282.140 Safari/537.36 Edge/18.17763`** — a browser that is
+// neither Chromium nor WebKit, which this would have stored as "Chromium 64".
+// EdgeHTML has been dead since 2020 and no such report has arrived, so this
+// guards against a fabricated row rather than an observed one. It is still
+// worth having: the whole point of the family table above is that a
+// hand-written rule about someone else's strings is a guess, and "nothing
+// spoofs Chrome/" is exactly that kind of guess.
+//
+// The discriminator is the token, not the version: EdgeHTML sent `Edge/`,
+// Chromium Edge sends `Edg/`. `EdgA/` (Android, Chromium) and `EdgiOS/` (iOS,
+// WebKit) match neither, and are handled by the rules above and below.
+const LEGACY_EDGEHTML = / Edge\/\d/;
+
 export function engineLabel(userAgent: string): string {
+  if (LEGACY_EDGEHTML.test(userAgent)) return "";
   const hit = /Chrome\/(\d+)/.exec(userAgent);
   if (!hit || !hit[1] || hit[1].length > 4) return "";
   return `Chromium ${hit[1]}`;

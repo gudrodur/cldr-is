@@ -11,11 +11,11 @@ problem in one comparison, and it takes ten seconds.
 
 If everything passes, the bug is invisible from where you are sitting, which is
 exactly how it reaches production. Firefox, Safari and Node ship full ICU;
-Chrome and Edge on the **desktop** do not — while **on Android it depends on
-the device**, not on the version: two reports from the same Chrome 151 on
-Android disagree with each other, and every Android build that does have
-Icelandic is missing the same one piece of it. Readers of this page found all of
-that in an afternoon. See below.
+Chrome and Edge on the **desktop** do not — while **on Android two reports of
+the same version disagree with each other**, and every *Chromium* Android build
+that does have Icelandic is missing the same one piece of it. (Firefox on
+Android has all of it.) Readers of this page found that in an afternoon. See
+below.
 
 **Status: not published, not yet built as a package.** This repository holds the
 code and the measurements while the approach earns production mileage in one
@@ -47,8 +47,11 @@ runtime built on Chromium's ICU inherits the gap:
   Firefox 155, every check passing on the same page where Chrome 152 fails
   eleven of twelve. That is what makes this easy to miss: the developer testing
   in Firefox sees Icelandic and ships English to most of their visitors. **Safari
-  is not affected either** — Safari 26 on macOS and Safari 26 on iOS both pass
-  all twelve checks, reported through the page on 2026-09-08. **Every `/ iOS`
+  is not affected either** — Safari 26 on macOS passes all twelve checks,
+  reported through the page on 2026-09-08. On iOS a WebKit row passes all twelve
+  too, but it **cannot be attributed to Safari**: it was recorded while the
+  family table's Safari pattern was broken, so it reads `other / iOS`, and the
+  user agent that would say which browser it was is discarded before storage. **Every `/ iOS`
   row measures Apple's WebKit**, whatever name the label carries: Apple requires
   it, so a `Firefox 155 / iOS` row (one arrived) says nothing about Gecko and a
   `Chrome / iOS` row says nothing about Chromium. On iOS the browser name is a
@@ -88,10 +91,14 @@ major version, same platform, opposite verdicts. Whatever decides this is not
 the Chromium version — and Icelandic on Android reaches back to at least 150,
 so there is no version at which it "arrived" either.
 
-On the desktop nothing is split at all: every row that is Chrome is on the
-English side, and the desktop rows carrying Icelandic are Vivaldi wearing
-Chrome's user agent — a different browser, and a different signature (see
-below).
+On the desktop nothing is split the same way. Four desktop rows *labelled*
+Chrome do carry Icelandic — and they pass all twelve, not eleven, which is a
+different signature from Android's. One of the four names Vivaldi in its
+reader's own correction; the other three cannot be attributed to any browser
+from what is stored, because Vivaldi is byte-identical to Chrome in the user
+agent, the brand list and the high-entropy hints (see below). So the honest
+statement is that no row **known** to be Chrome has Icelandic, and that the
+label alone cannot settle which those are.
 
 An earlier version of this section, written when 151 had reported once, said
 "whatever carries Icelandic to Android arrived in 152 and does not reach the
@@ -136,8 +143,8 @@ vendor's own numbering; the Chromium they run on is a separate number sitting
 right there in the same user agent, and it was being read and discarded. Since
 2026-09-08 the collector stores it as `engine` (`Chromium 152`) alongside the
 family label, so a row like Opera's can be placed on the same axis as Chrome's
-instead of guessed at. **Every row in the table above predates that column and
-reads empty** — the user agent is discarded before storage by design, so the
+instead of guessed at. **Every row in the table above except `Chrome 150 / Android` predates that
+column and reads empty** — the user agent is discarded before storage by design, so the
 engine version of the reports that raised the question no longer exists anywhere
 to be recovered. That is why this section says "four browser families" and not
 "N Chromium versions": the version axis is exactly what these rows cannot speak
