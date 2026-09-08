@@ -32,7 +32,10 @@ really are present in a runtime where nothing else Icelandic is.
 
 Only `is` is broken, and only PluralRules is right for it. Chrome 152 (headless
 probe) shows the identical row. Collation resolves to the same order in every
-locale because workerd's ICU has no collation tailoring at all.
+locale. Whether that is because workerd's ICU carries no Icelandic collation
+tailoring, or carries it and cannot negotiate the locale, is not separated here
+— the observable is the order, and Edge on the desktop turns out to be a case
+where those two come apart.
 
 ## Cost of the workaround in one production app
 
@@ -125,7 +128,7 @@ not help — hoisting the options constant changed nothing (28,290 vs 28,513 ns)
 
 So the comparison depends on which code you mean:
 
-- versus what this application actually had — 35 call sites, a **majority**
+- versus what this application actually had — 36 call sites, a **majority**
   passing an options object and the rest passing only a locale (2026-09-08).
   Manual is ~350× faster on the ones with options; on the ones
   without, the bare-call figures in the table above bracket the ratio rather
@@ -164,6 +167,11 @@ closed it. A first attempt that cached by character *string* changed nothing —
 the cost was the allocation, not the lookup.
 
 ## Vivaldi: the same Chromium, with Icelandic
+
+**Single run, one machine, 2026-09-08, driven over CDP with no committed
+script.** The `icudtl.dat` byte sizes below were later re-derived by parsing the
+package table of contents directly and agree exactly; the locale counts and the
+`is.pak` rows were not, and rest on that one run.
 
 Measured 2026-09-08, both browsers on Chromium 152, on this machine, minutes
 apart, driven over CDP against their own fresh profiles.

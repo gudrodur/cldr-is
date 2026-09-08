@@ -269,7 +269,7 @@ They are also faster, but read that claim carefully rather than off the table
 above. `toLocaleString(locale, options)` costs ~28 µs because it builds a
 formatter on nearly every call; the same call **without** an options object is
 ~930 ns, and a hoisted `Intl.DateTimeFormat` you reuse is ~816 ns. So against
-the code we actually replaced — 35 call sites — manual is between 12× and 350×
+the code we actually replaced — 36 call sites — manual is between 12× and 350×
 faster depending on the site, and against a reader who caches their formatter
 properly it is about 10×.
 
@@ -370,7 +370,7 @@ the T's.
 ### Edge on Windows sorts Icelandic correctly. Chrome on the same engine does not.
 
 This began as one row on 2026-09-08 and was written up as "one row is not a
-finding". A second arrived at a different major within the hour, and each has a
+finding". A second arrived at a different major the same day, and each has a
 same-engine Chrome counterpart on the same operating system:
 
 | Windows | engine, as recorded | dates | sort |
@@ -699,8 +699,11 @@ comparison page whose two halves have drifted apart is worse than no page.
 
 Every number in this README, with its method and date:
 [docs/measurements.md](docs/measurements.md) — **except the
-`@formatjs/intl-collator` figures**, whose method lives only in a comment at the
-top of [`src/collate.ts`](src/collate.ts) and which are a single run.
+`@formatjs/intl-collator` figures**. Those are a single run whose *results* are
+in a comment at the top of [`src/collate.ts`](src/collate.ts) and whose
+**method is written down nowhere** — how the package was bundled, how the pairs
+were generated. The line above said the method was in that comment, which was
+itself a claim about evidence that the evidence does not carry.
 `scripts/probe-worker-intl.mjs` re-measures a bare workerd for any locale
 (`npm run probe`, needs `wrangler` on PATH), so the gap can be re-checked per
 workerd release.
