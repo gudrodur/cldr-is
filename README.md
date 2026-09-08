@@ -11,8 +11,11 @@ problem in one comparison, and it takes ten seconds.
 
 If everything passes, the bug is invisible from where you are sitting, which is
 exactly how it reaches production. Firefox, Safari and Node ship full ICU;
-Chrome and Edge on the **desktop** do not. Android is unresolved and interesting
-— reports disagree with each other. See below.
+Chrome and Edge on the **desktop** do not — while **on Android two reports of
+the same version disagree with each other**, and every *Chromium* Android build
+that does have Icelandic is missing the same one piece of it. (Firefox on
+Android has all of it.) Readers of this page found that in an afternoon. See
+below.
 
 **Status: not published, not yet built as a package.** This repository holds the
 code and the measurements while the approach earns production mileage in one
@@ -37,13 +40,27 @@ runtime built on Chromium's ICU inherits the gap:
 - **Chrome and Edge on the desktop** — `new Date().toLocaleDateString("is", { month: "long" })`
   returns `December`, not `desember`. This is Chrome's *build*, not the engine:
   see the Vivaldi measurement below, which is the same Chromium with Icelandic
-  present. Opera and Brave are almost certainly affected and have not been
-  measured here; if you use one, the demo page will tell you in a second. **Firefox is not affected** — measured on
-  Firefox 155, every check passing on the same page where Chrome 152 fails
-  eleven of twelve. That is what makes this easy to miss: the developer testing
+  present. **Opera has since been measured — on Android, where it has Icelandic**
+  (below); Opera on the desktop and Brave anywhere are still unmeasured, and the
+  Android result is a reason to stop assuming rather than to assume the other
+  way. If you use one, the demo page will tell you in a second. **Firefox is not affected** — every
+  Gecko row reported so far passes all twelve, across Linux, Windows, macOS and
+  Android, and on every version anyone has reported, on the same page where Chrome 152 fails
+  eleven of twelve. (The `Firefox … / iOS` row is not one of them: it is WebKit,
+  see below.) That is what makes this easy to miss: the developer testing
   in Firefox sees Icelandic and ships English to most of their visitors. **Safari
-  is not affected either** — Safari 26 on macOS and Safari 26 on iOS both pass
-  all twelve checks, reported through the page on 2026-09-08. There is no Apple
+  is not affected either** — Safari 26 on macOS passes all twelve checks,
+  reported through the page on 2026-09-08. On iOS a WebKit row passes all twelve
+  too, but it **cannot be attributed to Safari**: it was recorded while the
+  family table's Safari pattern was broken, so it reads `other / iOS`, and the
+  user agent that would say which browser it was is discarded before storage. **Every `/ iOS`
+  row measures Apple's WebKit**, whatever name the label carries: Apple requires
+  it, so the `Firefox 155 / iOS` and `Chrome 150 / iOS` rows that arrived say
+  nothing about Gecko or Chromium respectively — both are measurements of
+  Safari's engine. On iOS the browser name is a skin. Those two rows are also
+  the evidence that the family table's iOS patterns work now: every iPhone
+  report landed in `other` until they were fixed on 2026-09-08, and none has
+  since. There is no Apple
   hardware in this project, so those reports are the measurement. The first one
   arrived as a screenshot with no version in it, which is why the page records a
   runtime label now and why these two carry numbers.
@@ -55,39 +72,91 @@ runtime built on Chromium's ICU inherits the gap:
 Node ships full ICU and is fine — which is why Node is the right oracle to test
 against, and why a test suite can pass while production is wrong.
 
-### Android is unresolved, and the reports disagree
+### Chromium on Android is split down the middle, and not by version
+
+Every Chromium row from Android, as recorded on 2026-09-08. The counts move as
+people open the page, so treat this as a dated snapshot and
+[`/summary`](https://intl-is-reports.gudrodur.workers.dev/summary) as the
+authority:
 
 | | resolved | checks failing |
 |---|---|---|
-| Chrome 152 / Android | **`is`** | 1 of 12 — `currency` only |
-| Samsung Internet 30 / Android | **`is`** | 1 of 12 — `currency` only |
-| **Chrome 151 / Android** | `en-US` | **11 of 12** |
-| Chrome 152 / macOS, for contrast | `en-GB` | 11 of 12 |
+| Chrome 150 / Android | **`is`** | 1 of 12 — `currency` |
+| Chrome 151 / Android | **`is`** | 1 of 12 — `currency` |
+| Chrome 151 / Android · "Messenger browser" | **`is`** | 1 of 12 — `currency` |
+| Chrome 152 / Android | **`is`** | 1 of 12 — `currency` |
+| Edge 152 / Android | **`is`** | 1 of 12 — `currency` |
+| Opera 101 / Android | **`is`** | 1 of 12 — `currency` |
+| Samsung Internet 30 / Android | **`is`** | 1 of 12 — `currency` |
+| **Chrome 151 / Android** | `en-US` | 11 of 12 |
+| Chrome 152 / Linux · Windows · macOS | `en-US`, `en-US`/`en-GB`, `en-GB` | 11 of 12 each |
 
-Two Android runtimes resolve `is` and get dates, numbers, lists, relative time
-and **collation** right. A third, one Chrome version older, fails exactly like
-the desktop.
+**`Chrome 151 / Android` is on both sides of that line.** Same family, same
+major version, same platform, opposite verdicts. Whatever decides this is not
+the Chromium version — and Icelandic on Android reaches back to at least 150,
+so there is no version at which it "arrived" either.
 
-This section said "Android appears not to be affected" for about an hour, on the
-strength of the first two rows, and the third arrived and made that wrong. Two
-agreeing reports were not enough to generalise from and it should not have been
-written as though they were.
+On the desktop nothing is split the same way. Several desktop rows *labelled*
+Chrome do carry Icelandic — and they pass all twelve, not eleven, which is a
+different signature from Android's. Exactly one of them names Vivaldi in its
+reader's own correction; the rest cannot be attributed to any browser from what
+is stored, because Vivaldi is byte-identical to Chrome in the user agent, the
+brand list and the high-entropy hints (see below). So the honest statement is
+that no row **known** to be Chrome has Icelandic, and that the label alone
+cannot settle which those are. The live count is in
+[`/summary`](https://intl-is-reports.gudrodur.workers.dev/summary); it grows,
+which is the point.
 
-What the three rows will support: **something varies on Android that does not
-vary on the desktop**, and the candidates are the Chrome version (151 against
-152) and the device — a phone set to Icelandic may be pulling different data,
-which is not something the desktop build does. Nothing here distinguishes them.
+An earlier version of this section, written when 151 had reported once, said
+"whatever carries Icelandic to Android arrived in 152 and does not reach the
+desktop build". Three more Android reports arrived within the hour and killed
+it: two on 151 with Icelandic, one on 150. The retraction is left visible on
+purpose. This section has now been rewritten twice by strangers' data, and both
+times the previous version was a rule inferred from a corpus too small to carry
+one — which is the same defect this project keeps finding in its own code.
 
-The one failing check on the two that pass is worth keeping in view whatever the
-explanation turns out to be: `currency` is its own ICU tree, `curr_tree`, and it
-is one of the four the pending Chromium change
+**What survives is sharper than what was retracted.** Every Android row that
+has Icelandic fails **exactly one check, and it is the same check every time** —
+`currency` — across every Chromium browser family that has reported from
+Android. `currency` is its own ICU
+tree, `curr_tree`, and it is one of the four the pending Chromium change
 [crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575)
-adds for `is`. A build that is one tree short of correct is a strange coincidence
-if these locales are simply absent.
+adds for `is` on the desktop. Independent rows landing on one tree short of
+correct is not the shape of a locale that is simply absent; it is the shape of a
+partial locale data set, missing the same tree the desktop patch would add.
 
-**More Android reports would settle it**, and they are the cheapest evidence
-available: open the page on a phone. Note the version and the system language if
-you do.
+**Two different passing signatures, and they should not be conflated.** The
+Android rows pass 11 of 12. The desktop rows that pass — Vivaldi — pass all 12,
+and so does Firefox on Android, which is Gecko and not part of this question at
+all. A desktop Chromium with Icelandic and an Android Chromium with Icelandic
+are not carrying the same data.
+
+Stated carefully about what is still **not** established: nothing here explains
+why two Chrome 151 Android devices disagree. Naming a mechanism now would be a
+third inference of exactly the confidence that has already been retracted twice
+on this page, so it stays a question — but it is no longer an unanswerable one.
+**Device language was the obvious suspect and was simply not being recorded**,
+which is the same defect as the engine version one paragraph down: the page
+could read it and did not. Since 2026-09-08 every report carries the browser's
+UI language as a bare language code (`is`, `en` — the primary subtag only; the
+ordered `navigator.languages` list is close to a visitor id and is deliberately
+not collected). Two Android reports from devices set to different languages will
+settle it. Every row that raised the question reads empty, so the answer has to
+come from new reports — **if you are reading this on Android, opening the page
+is the experiment.**
+
+**Version numbers in a browser label are not engine versions, and the collector
+used to lose the difference.** "Opera 101" and "Samsung Internet 30" are the
+vendor's own numbering; the Chromium they run on is a separate number sitting
+right there in the same user agent, and it was being read and discarded. Since
+2026-09-08 the collector stores it as `engine` (`Chromium 152`) alongside the
+family label, so a row like Opera's can be placed on the same axis as Chrome's
+instead of guessed at. **Every row in the table above except `Chrome 150 / Android` predates that
+column and reads empty** — the user agent is discarded before storage by design, so the
+engine version of the reports that raised the question no longer exists anywhere
+to be recovered. That is why this section counts browser families and not
+Chromium versions: the version axis is exactly what these rows cannot speak
+to. They need re-reporting, not repairing.
 
 ### Being Chromium is not the same as being broken: Vivaldi
 
@@ -247,7 +316,7 @@ zero console errors or warnings. In that same browser at that same moment,
 `Intl.DateTimeFormat("is").resolvedOptions().locale` returned `en-US`. The
 runtime was broken and the page was right.
 
-## Collation: the part no polyfill can fix
+## Collation: the part no polyfill fixes cheaply
 
 This section used to say formatjs had no `Collator` polyfill at all. That was
 asserted rather than checked, and it was wrong:
@@ -268,8 +337,8 @@ compilation" still future work. So collation *is* installable now — the basics
 land, CLDR exactness does not, and 707 KB gzip is not a price a page pays for
 sorting.
 
-Without it, on Chromium and workerd `localeCompare(_, "is")` silently sorts by
-the English alphabet:
+Without it, on Chrome and on workerd `localeCompare(_, "is")` silently sorts by
+the English alphabet — **on Edge for Windows it does not, see below**:
 
 ```
 ö z á a þ t æ e ð d   →  aáædðeötzþ   (en-US fallback)
@@ -279,6 +348,203 @@ the English alphabet:
 `á é í ó ú ý ð þ æ ö` are letters in their own right, not accented variants. In a
 member list, Ævar lands second instead of second-to-last and Þórður sorts among
 the T's.
+
+### Edge on Windows sorts Icelandic correctly. Chrome on the same engine does not.
+
+This began as one row on 2026-09-08 and was written up as "one row is not a
+finding". A second arrived at a different major within the hour, and each has a
+same-engine Chrome counterpart on the same operating system:
+
+| Windows | engine, as recorded | dates | sort |
+|---|---|---|---|
+| Chrome 152 | `Chromium 152` | `en-US` | **fails** |
+| **Edge 152** | `Chromium 152` | `en-US` | **passes** |
+| Chrome 153 | `Chromium 153` | `en-US` | **fails** |
+| **Edge 153** | `Chromium 153` | `en-GB` | **passes** |
+
+Two further `Chrome 152 / Windows` rows fail `sort` the same way but predate the
+engine column and read empty there, so they are left out of a table whose whole
+point is the engine. Nothing turns on them: for Chrome the family number *is*
+Google's Chromium number, so their engine is not in doubt — but it is inferred,
+and this table only shows what was recorded.
+
+Both Edge rows fail every other check — dates, numbers, currency, lists, all of
+it. Collation is the only thing they get right, and it is the only thing the
+Chrome rows beside them get wrong differently.
+
+**The check is not weak.** Those ten names come out in a demonstrably different
+order under `en`, `en-GB`, `en-US` and the root locale, verified against Node
+full ICU. No collator passes it by accident.
+
+**What that rules out.** Not a Chromium version — two majors. Not the operating
+system — Chrome fails on the same one. Not the engine build — at both majors
+the `engine` column recorded the Chrome row and the Edge row as the same
+Chromium. What is left is Edge's own ICU data.
+
+**What it does not establish.** Why; whether Edge does this on macOS or Linux,
+neither of which has reported; and whether `Intl.Collator("is")` actually
+resolves to `is` there or merely behaves as though it does — the page only
+started sending the collator's resolved locale on 2026-09-08 and both Edge rows
+predate it. These are still self-submitted reports from four strangers'
+machines, not a controlled measurement. **If you have Edge, opening the page
+adds the row that settles the mechanism.**
+
+**So the practical advice splits by browser**, which the top of this section did
+not previously allow for. For Chrome, and for workerd where the gap is measured
+directly, `localeCompare(_, "is")` sorts by the English alphabet and you need
+what is below. For Edge on Windows, on this evidence, sorting already works —
+while its dates and numbers still do not.
+
+### Confirmed locally, and it is not Windows-specific
+
+The two Edge rows above are self-reports from Windows. On 2026-09-08 the same
+thing was measured directly, on this machine, on **Linux** — which also settles
+whether it is Windows-specific. It is not.
+
+`microsoft-edge-stable-152.0.4191.66` extracted from Microsoft's rpm (no
+install, see below), run headless against the same twelve checks:
+
+| Edge 152 / Linux | |
+|---|---|
+| `Intl.DateTimeFormat("is").resolvedOptions().locale` | `en-US` |
+| `Intl.NumberFormat("is").resolvedOptions().locale` | `en-US` |
+| **`Intl.Collator("is").resolvedOptions().locale`** | **`is`** |
+| long month | `September 2, 2026` |
+| number | `1,234,567.89` |
+| sort | **correct** |
+
+So it is not a behaviour that happens to look right — **ICU genuinely resolves
+`is` for collation and `en-US` for everything else in the same browser.** That
+is the mechanism the `resolvedCollator` field was added to capture, confirmed
+without waiting for a report to carry it.
+
+### Read the data file itself: it is 80 bytes versus 9,360
+
+Everything above was inferred from behaviour and file sizes. On 2026-09-08 the
+`icudtl.dat` files were parsed directly instead — the ICU package table of
+contents lists every entry with an offset, so each locale's bytes can simply be
+read off. No inference left.
+
+Every Icelandic entry in three Chromium **152** builds:
+
+| entry | Chrome 152 | Vivaldi 8.2 | Edge 152 |
+|---|---|---|---|
+| **`is.res`** (root: dates, months, weekdays, number symbols) | **80 B** | **9,360 B** | **80 B** |
+| `coll/is.res` (collation) | — | 23,872 B | 23,872 B |
+| `curr/is.res` (currency) | — | 14,736 B | 14,736 B |
+| `zone/is.res` | — | 15,280 B | 15,280 B |
+| `region/is.res` | — | 6,336 B | 6,048 B |
+| `unit/is.res` | — | 5,840 B | 5,840 B |
+| `lang/is.res` | 112 B | 5,936 B | 112 B |
+| **total Icelandic** | **192 B** | **81,360 B** | **65,968 B** |
+
+Three things fall out, and two of them correct what this page said earlier.
+
+**1. The 81,200 bytes really is Icelandic, and now that is measured rather than
+reasoned.** Vivaldi's Icelandic entries exceed Chrome's by 81,168 B; the whole
+file differs by 81,200 B. The 32-byte remainder is table-of-contents overhead.
+Vivaldi added `is` to five trees and changed nothing else. This was the weakest
+claim on the page — a byte delta between two files, attributed to one locale —
+and it survives.
+
+**2. `is` is not absent from Chrome. It is present and hollow.** The root entry
+exists at **80 bytes**, which is what "keeps only the minimum locale data for
+non-UI languages" means in practice: the bundle is there so lookups resolve, and
+it contains essentially nothing. Vivaldi's is 9,360 B. That is the difference
+between `desember` and `December` — **9,280 bytes.**
+
+**3. Edge has the currency data and still gets currency wrong**, which corrects
+the earlier reading here that Edge "ships collation and nothing else". It ships
+`is` in *five* trees, byte-identical to Vivaldi in four of them. What it does
+**not** ship is the root bundle: 80 bytes, exactly Chrome's stub.
+
+That explains the whole Edge signature at once. Collation is self-contained in
+`coll/is.res`, so it works. Dates, month names and number symbols live in the
+root bundle, so they are English. And **currency formatting needs both** — the
+symbol from `curr/is.res`, which Edge has, and the number pattern from the root
+bundle, which it does not — so it fails despite the currency data being present.
+A missing check is not always a missing file.
+
+**So Edge's extra 1.5 MB is not Icelandic** — Icelandic is 66 KB of it. Edge
+restored the auxiliary trees broadly: `coll` 99 → 132 locales, `curr` 310 → 378,
+`region` 267 → 324, `unit` 261 → 326, `zone` 267 → 330. What it left alone, for
+every non-UI language, is the root bundle. Whatever the rule inside Microsoft
+is, it is not "add Icelandic".
+
+**And Edge ships 41,904 bytes of Icelandic that nothing can ask for.** Asking
+each `Intl` service directly, on Edge 152:
+
+| `supportedLocalesOf(["is"])` | Edge 152 | Chrome 152 |
+|---|---|---|
+| `Intl.Collator` | **`["is"]`** | `[]` |
+| `Intl.DateTimeFormat` | `[]` | `[]` |
+| `Intl.NumberFormat` | `[]` | `[]` |
+| `Intl.DisplayNames` | `[]` | `[]` |
+| `Intl.ListFormat` | `[]` | `[]` |
+| `Intl.RelativeTimeFormat` | `[]` | `[]` |
+
+Collation is the only one of six services that can negotiate `is` at all. Yet
+`curr/is.res`, `zone/is.res`, `unit/is.res` and `region/is.res` are all in the
+file, byte-identical to Vivaldi's, and together they are 41,904 bytes that no
+API can reach — because the services that would read them refuse the locale
+before they get there.
+
+So the comparison that matters is not how much Icelandic a build carries but
+whether the locale is available to the service that needs it: **Vivaldi spends
+9,280 bytes more than Edge on the root bundle and every service works; Edge
+spends 65,968 bytes on Icelandic and one service does.**
+
+**Reproduce it:** the entry names are plain ASCII in the package TOC, so
+`strings icudtl.dat | grep 'is\.res'` gets you the presence table with no tools
+at all. Sizes need the offsets: read `headerSize` from the first two bytes, then
+a `uint32` count and that many `(nameOffset, dataOffset)` pairs, and take each
+entry's size as the difference between consecutive data offsets.
+
+### 81,200 bytes buys all of Icelandic. Edge spends 1.5 MB and does not get it.
+### Do not report from an emulated device — it produces a false row
+
+Chrome DevTools' device toolbar, and `--user-agent` on the command line, change
+the user agent and the viewport. **They do not change ICU.** Measured the same
+day, Chrome 152 with an iPhone user agent:
+
+| Chrome 152, `--user-agent=<iPhone Safari>` | |
+|---|---|
+| what the collector would label it | `Safari 26 / iOS` |
+| `DateTimeFormat`, `NumberFormat`, `Collator` | `en-US`, `en-US`, `en-US` |
+| sort | **wrong** |
+
+That row would say Safari fails all twelve, which is false — real Safari passes
+all twelve. Emulation is the one way to put a confidently wrong row into this
+data set, and nothing downstream could detect it, because the collector deletes
+the evidence by design. **Real browsers only.** For coverage nobody owns, a
+real-device cloud (BrowserStack, LambdaTest, Sauce Labs — all with free open
+source tiers) runs real builds on real operating systems; a device emulator does
+not.
+
+### Three different partial data sets, not one gap
+
+Lining the measurements up, Chromium builds are not simply missing Icelandic or
+not. They are missing *different parts* of it:
+
+| | dates, numbers, lists | currency | collation |
+|---|---|---|---|
+| Chrome on the desktop | ✗ | ✗ | ✗ |
+| Edge (Windows and Linux) | ✗ | ✗ | **✓** |
+| the Android rows that have Icelandic | **✓** | ✗ | **✓** |
+| desktop rows labelled Chrome that pass | **✓** | **✓** | **✓** |
+
+Those four signatures **partition every Chromium row collected** — no row falls
+outside them and none straddles two. Two caveats the table cannot carry: one
+Android row has none of it and sits in the first line rather than the third,
+which is the unexplained Android split above; and of the rows on the last line
+exactly one names Vivaldi in its reader's own correction, the rest being
+unattributable for the reason given earlier.
+
+Which is what the ICU filter this whole page is about would predict, and is
+easy to miss if you treat "does this browser speak Icelandic" as one question.
+`curr_tree`, `coll_tree` and the date trees are separate entries in
+`third_party/icu/filters/common.json`, and these four signatures sit at
+four different points in that space.
 
 ```ts
 import { compareIs } from "intl-is/collate";

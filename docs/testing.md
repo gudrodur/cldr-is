@@ -157,3 +157,123 @@ itself on measurement is its own kind of defect.
 
 "I could not verify this" is a result. It is more useful than a plausible
 substitute, and it tells a reader exactly how far to trust the rest.
+
+## 13. A count about a live dataset decays; a shape does not
+
+This rule cost four corrections in one afternoon, three of them made *after*
+writing the previous one down, and one inside the very commit that explained the
+problem. It is the most-repeated mistake in this repository's history.
+
+The README describes a table that strangers append to by opening a page. Every
+count written into it — "three browsers agree", "six Android rows", "four
+desktop rows", "across three majors" — was accurate when typed and wrong within
+the hour. Nothing failed. No test went red. The document simply became false
+while everyone's attention was elsewhere, which is the worst available failure
+mode: silent, and invisible to the whole test suite.
+
+**The distinction that matters is not accuracy, it is what new data does to the
+claim:**
+
+- A claim new data can **falsify** is fine, and is the entire point of
+  collecting any. *"Every Gecko row passes all twelve"* is a real assertion that
+  one failing row would destroy, and it should be written exactly that boldly.
+- A claim new data merely makes **stale** is a maintenance burden assigned to
+  nobody. *"Three browsers agree"* is not refuted by a fourth agreeing — it is
+  just quietly wrong, and it is wrong in the direction of understating your own
+  evidence.
+
+So state the shape and let the endpoint carry the arithmetic: "every Chromium
+family that has reported from Android", "several desktop rows", "on every
+version anyone has reported". Where a table is genuinely useful, date it
+explicitly as a snapshot and link the live source beside it.
+
+**The exception is measurements of fixed artefacts**, and it is not a small one
+— 707,603 B gzipped, 12.7% of Latin pairs, 81,200 bytes of `icudtl.dat`. Those
+are properties of a file that will read the same next year, and hedging them
+would throw away the precision that makes them worth having. The test is whether
+anyone can change the number by opening a web page.
+
+## 14. Do not assign an identity a row cannot carry
+
+The most repeated mistake in this project, four times in one afternoon, and
+every instance looked like ordinary summarising rather than like an error.
+
+The collector stores a *label*, derived from a user agent that is then thrown
+away. A label is not an identity. Vivaldi sends Chrome's user agent verbatim —
+byte-identical in the brand list and the high-entropy hints too — so a row
+reading `Chrome 152 / Linux` may be Chrome, Vivaldi, or something else that has
+never been named here. Writing "the desktop rows carrying Icelandic are Vivaldi"
+converted several unattributable rows into a claim about one browser, in a
+sentence written to *correct* the previous version of the same error.
+
+The four:
+
+- "the desktop rows carrying Icelandic are Vivaldi" — exactly one of them said so.
+- "every row that is Chrome is on the English side" — several rows *labelled*
+  Chrome were not.
+- "Safari 26 on iOS passes all twelve" — no such row. The passing iOS row reads
+  `other / iOS`, recorded while the Safari pattern was broken, and the endpoint's
+  own `knownGap` note says it cannot be relabelled.
+- a comparison table showing `Chromium 152` for rows whose engine column is
+  empty — read off the family label and presented as recorded.
+
+**The test is one question: could this row have been produced by something other
+than the thing I just called it?** If yes, name what was recorded ("rows
+labelled Chrome"), state the attribution separately with its evidence ("one
+names Vivaldi in a reader's correction"), and say plainly that the rest cannot
+be attributed. That is not hedging — it is the difference between a measurement
+and a guess wearing its clothes.
+
+Note what makes this one hard to catch: the wrong version is *shorter*, reads
+more confidently, and is usually true of the row you were actually looking at.
+
+## 15. A field derived from an attacker-controlled input is attacker-controlled
+
+Everything the collector knows about a browser comes from a string the reporter
+sends, and every derived field inherits that. `runtimeLabel`, `engineLabel` and
+the platform are all functions of `navigator.userAgent`, which anyone can set —
+Chrome does it with one command-line flag, and DevTools' device toolbar does it
+with two clicks.
+
+Measured 2026-09-08: Chrome 152 with an iPhone user agent still resolves `en-US`
+for every `Intl` constructor and still sorts wrong, because **emulation changes
+the label and the viewport, never ICU**. That report would be stored as
+`Safari 26 / iOS` failing all twelve checks — confidently, permanently, and in
+direct contradiction of the real Safari row.
+
+Two things follow, and the second is the uncomfortable one:
+
+1. **Say so where people can act on it.** The page now asks readers not to
+   report from an emulated device, because that is cheaper than any detection.
+2. **A privacy decision can be an auditability cost.** Discarding the user agent
+   is right — a rare one is a visitor id whatever the column is called — but it
+   means a poisoned row can never be re-examined, only deleted. That trade is
+   worth making here and it should be made knowingly, not discovered later.
+
+## 16. A gap you are explaining is a bug report about your collector
+
+When you catch yourself writing "this data cannot say why", stop. Ask what would
+have had to be recorded, then check whether it was available and thrown away.
+
+Three times in one afternoon the answer was yes, and each time the document had
+already spent a careful paragraph reasoning around the hole instead:
+
+- **Engine version.** Every Chromium browser carries `Chrome/<major>` whatever
+  it calls itself. The collector parsed that exact token to build a family label
+  and discarded the number, so "Opera 101" could not be compared with
+  "Chrome 152" at all. Within an hour of adding the column it settled a
+  different question entirely.
+- **Device language.** Named as the leading suspect in two consecutive rewrites,
+  never measured, and readable as `navigator.language`.
+- **The collator's resolved locale.** The page ran a collation check and
+  reported only `DateTimeFormat`'s locale, as though one tag answered for every
+  ICU tree. It does not — which is precisely the subject of this whole
+  repository.
+
+Adding a field costs one line and one migration. Reasoning around its absence
+costs a paragraph that must be relitigated every time new data arrives, and it
+*reads as rigour*, which is what makes it hard to see.
+
+When you do add one, say in the document that existing rows read empty and
+cannot be backfilled. The temptation is to let a new column quietly imply the
+whole table answers the new question.

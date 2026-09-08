@@ -43,6 +43,12 @@ export const FAMILIES: Array<[string, RegExp]> = [
   // On iOS every browser is WebKit underneath and identifies with its own token
   // rather than Chrome/ or Firefox/. Without these, an iPhone running Chrome
   // lands in "other" and looks like an unknown engine when it is not.
+  //
+  // Read those rows carefully: the name is a skin. Apple requires WebKit, so
+  // "Firefox 155 / iOS" and "Chrome 152 / iOS" are both measurements of Safari's
+  // engine, and neither says anything about Gecko or Chromium. The label is kept
+  // because it is what the reader chose and it groups their reports; the engine
+  // it implies is not the one running.
   ["Chrome", /CriOS\/(\d+)/],
   ["Firefox", /FxiOS\/(\d+)/],
   ["Chrome", /Chrome\/(\d+)/],
@@ -103,6 +109,42 @@ export function runtimeLabel(userAgent: string): string {
   return `${family}${version ? " " + version : ""} / ${platform}`;
 }
 
+// The engine version, separately, because the family version is not it.
+//
+// "Opera 101 / Android" and "Samsung Internet 30 / Android" both pass while
+// "Chrome 151 / Android" fails, and until 2026-09-08 nothing here could say
+// whether that was one Chromium version disagreeing with another or five
+// unrelated numbers sitting in a table. Every Chromium browser carries
+// `Chrome/<major>` in its user agent whatever it calls itself — that IS the
+// engine version, and it was being read and discarded.
+//
+// Empty for everything else, and deliberately not guessed at: Gecko's `rv:`
+// tracks Firefox's own number so it adds nothing, and every iOS browser reports
+// the same frozen `AppleWebKit/605.1.15` regardless of which WebKit is running,
+// so a version there would be a fabrication.
+//
+// `Chrome/` is NOT a reliable Chromium marker on its own, which a review caught
+// here rather than a report: **legacy EdgeHTML Edge sent
+// `… Chrome/64.0.3282.140 Safari/537.36 Edge/18.17763`** — a browser that is
+// neither Chromium nor WebKit, which this would have stored as "Chromium 64".
+// EdgeHTML has been dead since 2020 and no such report has arrived, so this
+// guards against a fabricated row rather than an observed one. It is still
+// worth having: the whole point of the family table above is that a
+// hand-written rule about someone else's strings is a guess, and "nothing
+// spoofs Chrome/" is exactly that kind of guess.
+//
+// The discriminator is the token, not the version: EdgeHTML sent `Edge/`,
+// Chromium Edge sends `Edg/`. `EdgA/` (Android, Chromium) and `EdgiOS/` (iOS,
+// WebKit) match neither, and are handled by the rules above and below.
+const LEGACY_EDGEHTML = / Edge\/\d/;
+
+export function engineLabel(userAgent: string): string {
+  if (LEGACY_EDGEHTML.test(userAgent)) return "";
+  const hit = /Chrome\/(\d+)/.exec(userAgent);
+  if (!hit || !hit[1] || hit[1].length > 4) return "";
+  return `Chromium ${hit[1]}`;
+}
+
 // Strict: `Number(true)` is 1, and the first version stored "1 check ran" for a
 // report that sent `checked: true`. A wrong row is worse than a rejected one.
 function integerInRange(value: unknown, min: number, max: number): number | null {
@@ -142,6 +184,37 @@ export default {
         return json({ error: "userAgent, resolved, checked and broken are required" }, 400);
       }
 
+      // What Intl.Collator resolved, kept apart from `resolved` (which is
+      // DateTimeFormat's). These are different ICU trees — `coll_tree` and the
+      // date trees — and one field for both is a conflation that hid the most
+      // interesting row this project has recorded: Edge 153 on Windows
+      // reported `en-GB` dates on 2026-09-08 while sorting Icelandic
+      // CORRECTLY, and nothing stored could say whether that was real
+      // collation data or a check too weak to tell. It is real: the English
+      // collator puts these ten names in a demonstrably different order.
+      //
+      // Collation is the part of this problem with no polyfill, so a build
+      // that has it and nothing else is exactly the case worth being able to
+      // see. Same validation as `resolved`.
+      const resolvedCollator =
+        typeof body.resolvedCollator === "string" &&
+        /^[A-Za-z0-9-]{2,35}$/.test(body.resolvedCollator)
+          ? body.resolvedCollator
+          : "";
+
+      // The browser's UI language, primary subtag only. The one field that can
+      // settle why two reports from the same Chrome 151 on Android disagree
+      // about whether Icelandic is present — see the Android section of the
+      // README, which has had to retract a version-based explanation twice.
+      //
+      // Two to three lowercase letters and nothing else. Anything longer is
+      // either a region-tagged form the page was asked not to send or someone
+      // probing the endpoint; either way it is dropped rather than stored, on
+      // the same rule as everything else here — a wrong row is worse than an
+      // absent one. Empty string, never null, for the UNIQUE constraint.
+      const language =
+        typeof body.language === "string" && /^[a-z]{2,3}$/.test(body.language) ? body.language : "";
+
       // Optional, typed by the reader when the detected label is wrong. Same
       // treatment as everything else from a stranger: printable ASCII, short.
       // Empty string, never null: the UNIQUE constraint below counts NULLs as
@@ -175,14 +248,17 @@ export default {
       // existed: 8 rows/second from one client, 7x D1's daily write allowance,
       // which would have taken the endpoint down for everyone.
       await env.DB.prepare(
-        `INSERT OR IGNORE INTO reports (first_seen, runtime, said, resolved, checked, broken, failing, country)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR IGNORE INTO reports (first_seen, runtime, engine, language, said, resolved, resolved_collator, checked, broken, failing, country)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
         .bind(
           new Date().toISOString().slice(0, 10),
           runtimeLabel(rawAgent),
+          engineLabel(rawAgent),
+          language,
           said,
           resolved,
+          resolvedCollator,
           checked,
           broken,
           JSON.stringify(failing),
@@ -194,16 +270,26 @@ export default {
       // it makes the promise checkable from the browser console.
       return json({
         ok: true,
-        stored: { runtime: runtimeLabel(rawAgent), said: said || null, resolved, checked, broken },
+        stored: {
+          runtime: runtimeLabel(rawAgent),
+          engine: engineLabel(rawAgent) || null,
+          language: language || null,
+          resolvedCollator: resolvedCollator || null,
+          said: said || null,
+          resolved,
+          checked,
+          broken,
+        },
       });
     }
 
     if (url.pathname === "/summary" && request.method === "GET") {
       const { results } = await env.DB.prepare(
-        `SELECT runtime, said, resolved, checked, broken, failing, MIN(first_seen) AS since
+        `SELECT runtime, engine, language, said, resolved, resolved_collator AS resolvedCollator,
+                checked, broken, failing, MIN(first_seen) AS since
            FROM reports
-          GROUP BY runtime, said, resolved, checked, broken
-          ORDER BY runtime, said`,
+          GROUP BY runtime, engine, language, said, resolved, resolved_collator, checked, broken
+          ORDER BY runtime, engine, said`,
       ).all();
 
       const totals = await env.DB.prepare(
@@ -220,7 +306,8 @@ export default {
       return json({
         note:
           "Reports from https://gudrodur.github.io/intl-is/. The database stores a runtime label " +
-          "(browser family, major version, coarse platform), the resolved locale, the check counts, " +
+          "(browser family, major version, coarse platform), the engine version where the user agent " +
+          "states one, the browser UI language as a bare language code, the resolved locale, the check counts, " +
           "which checks failed, and Cloudflare's two-letter country. It never receives or stores the " +
           "full user agent, an IP address, a cookie or any visitor id. `said` is free text a reader " +
           "typed and is republished here verbatim. One row per runtime, typed name and verdict.",
@@ -231,6 +318,25 @@ export default {
           "is the more reliable of the two when present — but it is unverified self-report, nothing " +
           "checks it, and every distinct spelling is its own row, so read it as a hint and group by " +
           "hand rather than counting on it.",
+        engineNote:
+          "`engine` is the Chromium major read from the `Chrome/<major>` token every Chromium " +
+          "browser carries, whatever it calls itself — so Opera's 101 and Samsung Internet's 30 " +
+          "can be placed on the same axis as Chrome's 152. It is empty, never guessed, for Gecko " +
+          "(whose `rv:` only repeats Firefox's own number) and for every iOS browser (which all " +
+          "report the same frozen AppleWebKit build). Rows first seen before 2026-09-08 also read " +
+          "empty and CANNOT be backfilled: the user agent is discarded before storage, so the " +
+          "engine version of the reports this column was added to answer is gone. Those rows need " +
+          "re-reporting, not repairing.",
+        languageNote:
+          "`language` is the browser's own UI language, primary subtag only — `is`, `en` — added " +
+          "2026-09-08 to answer one question: two reports from the same Chrome 151 on Android " +
+          "disagree about whether Icelandic is present, and no field recorded before that date " +
+          "could say why. The ordered navigator.languages list is deliberately NOT collected; it " +
+          "is close to a visitor id. Rows first seen before 2026-09-08 read empty and cannot be " +
+          "backfilled, so the question is answered by NEW Android reports or not at all.",
+        iosNote:
+          "Every `/ iOS` row measures Apple's WebKit whatever the browser name says — Apple requires " +
+          "it — so `Firefox … / iOS` is not a Gecko result and `Chrome … / iOS` is not a Chromium one.",
         knownGap:
           "A row reading `other / iOS` from 2026-09-08 is a detection bug, not an unknown browser: " +
           "the Safari pattern required the word Safari immediately after the version and iOS puts a " +
