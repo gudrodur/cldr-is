@@ -79,8 +79,17 @@ The manual figure was **1,618 B until 2026-09-08** and moved for two reasons, on
 honest bookkeeping and one real. The bookkeeping: 1,618 B was measured over the
 subset of exports one application imported, which nobody else could reproduce;
 the number above is every export of both modules, bundled and gzipped, so it can
-be. The real one: the collation tables added that day cost **774 B gzip**, and
+be. The real one: the collation tables added that day cost **901 B gzip**, and
 they buy correct order for the whole Latin script — see below.
+
+**Method, so these are reproducible.** Size:
+`npx esbuild <entry> --bundle --minify --format=esm --target=es2022`, then
+`gzip -9`. Speed: the median of nine sorts of 10 000 generated Icelandic names,
+in one Node process, against `Intl.Collator("is")` in the same run. Every figure
+on this page was taken that way on 2026-09-08, and an earlier version of this
+section printed 731 B, 774 B and 952 B for quantities a re-measurement put at
+901 B and 808 B — three numbers for one event, none of them reproducible,
+because the method was never written down.
 
 One caveat in the polyfill's favour, and it is real: the 191,966 B is behind a
 `shouldPolyfill` gate, so Firefox and Safari visitors download none of it, while
@@ -128,11 +137,11 @@ Sorting, same machine:
 |---|---|---|
 | 253 | 0.1 ms | 0.1 ms |
 | 2 000 | 3.2 ms | 1.4 ms |
-| 10 000 | 17.8 ms | 7.5 ms |
+| 10 000 | 17.3 ms | 7.3 ms |
 
 Re-measured 2026-09-08 after the correctness fixes below. They made it *faster*,
 not slower: dropping a second per-character map lookup for the case rank took
-10 000 names from 20.1 ms to 17.8 ms while adding NFC handling and the expansion
+10 000 names from 19.0 ms to 17.3 ms while adding NFC handling and the expansion
 level. The normalisation is behind a regex test, so a string with no combining
 mark never pays for it.
 
@@ -208,8 +217,8 @@ that marks compare position by position, which had `ô`/`ŏ` and `ǡ`/`ā` wrong
 | | before | after |
 |---|---|---|
 | Latin letter pairs matching ICU | 190,658 of 202,500 | **202,500 of 202,500** |
-| collator alone, gzip | 952 B | 1,683 B |
-| 10 000 names sorted | 17.8 ms | 16.8 ms |
+| collator alone, gzip | 808 B | 1,709 B |
+| 10 000 names sorted | 19.0 ms | 17.3 ms |
 
 The fallback for characters the tables do not reach was changed in the same
 pass, and the effect was measured both ways over fixed pools rather than
