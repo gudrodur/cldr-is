@@ -142,9 +142,13 @@ Four things that are not obvious and each cost a debugging session:
   `Intl.DateTimeFormat`, it just answers in English, so the conditional polyfill
   decides nothing is wrong and does nothing;
 - `polyfill-force` replaces the global class for **every** locale, so a server
-  that formats other languages must load their data too, or they regress
-  (measured: with only `is` loaded, `en` pluralised 21 as "one" and Polish
-  relative time came out in Icelandic);
+  that formats other languages must load their data too, or they regress. This
+  line used to say the regression looked like `en` pluralising 21 as "one" and
+  Polish relative time coming out in Icelandic. Re-measured on the versions this
+  repo pins: `en` and `de` relative time do come out in Icelandic, and
+  **Polish throws** — `TypeError: Cannot read properties of undefined (reading
+  'indexOf')`. A crash is easier to notice than wrong text, which makes the
+  original warning understate the failure rather than overstate it;
 - leave `PluralRules` native — it is already correct for `is`, and faster;
 - a one-line self-test on a health endpoint is worth having, because this failure
   is silent and looks like English copy.
@@ -329,7 +333,7 @@ worse in exactly one place, a uniform draw over the whole code space, which is
 mostly *unassigned* code points and therefore not text.
 
 It is about **2.4× slower than a native `Intl.Collator`** (17 ms versus 7 ms
-sorting 10 000 names) and the tables above cost **774 B gzip** on top of what it
+sorting 10 000 names) and the tables above cost **901 B gzip** on top of what it
 was before them. Those are the two measurements here that do not favour this
 approach, and they buy the whole Latin script.
 
