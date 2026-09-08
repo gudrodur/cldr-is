@@ -155,10 +155,12 @@ input (NFC vs NFD) comparing unequal, every character above U+0062 sharing one
 fallback weight so `compareIs("中", "文")` returned 0, and `ß`/`ss` tying where
 ICU separates them. All three are fixed and all three are now pinned in CI; what
 the table claims and what the tests run are the same set. Outside it — CJK,
-emoji, symbols against *each other* — parity is still not claimed, and 3,353
-pairs of a 607,950-pair sweep still diverge there. What is now guaranteed
-everywhere is weaker but unconditional: two different strings never compare
-equal, and the order is by code point.
+emoji, symbols against *each other* — parity is still not claimed, and a sweep
+that goes there still finds a few thousand divergences per hundred thousand
+random pairs (the count moves run to run; the sweep is random and the claim is
+only that it is nonzero). What is now guaranteed everywhere is weaker but
+unconditional: two different strings never compare equal, and the order is by
+code point.
 
 The date figure is 49 comparisons run in each of three time zones. Running them
 in more than one zone is not decoration: the first version of that sweep rendered

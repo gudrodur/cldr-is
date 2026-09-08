@@ -35,8 +35,7 @@ const WEIGHT_FALLBACK = 2_000_000;
 const WEIGHT_DIGIT = 4_000_000;
 const WEIGHT_LETTER = 5_000_000;
 
-for (const [i, ch] of Array.from(IS_ALPHABET).entries())
-  PRIMARY.set(ch, WEIGHT_LETTER + i * 10);
+for (const [i, ch] of Array.from(IS_ALPHABET).entries()) PRIMARY.set(ch, WEIGHT_LETTER + i * 10);
 
 // The letters CLDR's Icelandic tailoring places somewhere OTHER than next to
 // the letter they decompose to, measured against Node full ICU:
@@ -175,13 +174,29 @@ function toNfc(value: string): string {
   return COMBINING.test(value) ? value.normalize("NFC") : value;
 }
 
+// Composed, then rewritten if it holds an expanding letter. Both tests are
+// cheap and an ordinary Icelandic name matches neither.
+function prepare(value: string): string {
+  const composed = toNfc(value);
+  return EXPANDING.test(composed) ? expand(composed) : composed;
+}
+
+// Everything above ties. Two strings can still differ here — an expansion makes
+// "ß" equal to "ss" at every level ICU compares them on, and ICU then separates
+// them below that, ordering the single letter AFTER the pair it expands to.
+// Comparing the composed originals by code point gives exactly that order, and
+// gives 0 for the case this level exists to protect: input that was only ever
+// the same string spelled two ways.
+function breakTie(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+
 export function compareIs(a: string, b: string): number {
   // Canonically equivalent input must compare equal, so both sides are composed
   // before anything else looks at them.
-  const na = toNfc(a);
-  const nb = toNfc(b);
-  const A = EXPANDING.test(na) ? expand(na) : na;
-  const B = EXPANDING.test(nb) ? expand(nb) : nb;
+  const A = prepare(a);
+  const B = prepare(b);
   let i = 0;
   let j = 0;
   let secondary = 0;
@@ -200,13 +215,5 @@ export function compareIs(a: string, b: string): number {
   // A prefix sorts before the longer string it is a prefix of.
   if (i < A.length) return 1;
   if (j < B.length) return -1;
-  if (secondary || tertiary) return secondary || tertiary;
-
-  // Everything above ties. Two strings can still differ here — an expansion
-  // makes "ß" equal to "ss" at every level ICU compares them on, and ICU then
-  // separates them below that, ordering the single letter AFTER the pair it
-  // expands to. Comparing the composed originals by code point gives exactly
-  // that order, and gives 0 for the case this level exists to protect: input
-  // that was only ever the same string spelled two ways.
-  return na === nb ? 0 : na < nb ? -1 : 1;
+  return secondary || tertiary || breakTie(toNfc(a), toNfc(b));
 }
