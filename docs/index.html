@@ -85,11 +85,17 @@
     <div class="said">
       <span id="said-why">Not right? Some browsers look exactly like Chrome from
       here — Vivaldi does. <strong>Which browser is this?</strong></span>
-      <input id="said" type="text" maxlength="40" placeholder="Vivaldi" autocomplete="off">
+      <input id="said" type="text" maxlength="40" placeholder="Vivaldi 8.2.4133.47" autocomplete="off">
       <button id="said-send" type="button">Correct it</button>
       <span id="said-done"></span>
       <div class="where">
-        Where to find it: <code>chrome://version</code> in Chrome, Edge or Brave
+        <strong>Include the name.</strong> Those About pages print a bare number
+        — <code>vivaldi://about</code> says <code>Version: 8.2.4133.47</code> and
+        never says Vivaldi — so <code>Vivaldi 8.2.4133.47</code>, not
+        <code>8.2.4133.47</code>. A version on its own tells a later reader
+        nothing.
+        <br>
+        Where to look: <code>chrome://version</code> in Chrome, Edge or Brave
         · <code>vivaldi://about</code> · <code>about:support</code> in Firefox
         · <code>opera://about</code> · Safari and Samsung Internet keep it in the
         menu, under About. Type the address, do not follow a link — browsers
