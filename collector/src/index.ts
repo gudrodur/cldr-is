@@ -128,10 +128,13 @@ export default {
 
       // Optional, typed by the reader when the detected label is wrong. Same
       // treatment as everything else from a stranger: printable ASCII, short.
+      // Empty string, never null: the UNIQUE constraint below counts NULLs as
+      // distinct from each other, so a null here would switch off deduplication
+      // for every report that does not carry a name — which is most of them.
       const said =
         typeof body.said === "string"
-          ? body.said.replace(/[^\x20-\x7E]/g, "").slice(0, 40).trim() || null
-          : null;
+          ? body.said.replace(/[^\x20-\x7E]/g, "").slice(0, 40).trim()
+          : "";
 
       const failing = Array.isArray(body.failing)
         ? body.failing
@@ -162,7 +165,10 @@ export default {
 
       // Tell the reporter exactly what was kept. They are entitled to know, and
       // it makes the promise checkable from the browser console.
-      return json({ ok: true, stored: { runtime: runtimeLabel(rawAgent), said, resolved, checked, broken } });
+      return json({
+        ok: true,
+        stored: { runtime: runtimeLabel(rawAgent), said: said || null, resolved, checked, broken },
+      });
     }
 
     if (url.pathname === "/summary" && request.method === "GET") {
