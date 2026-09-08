@@ -310,7 +310,7 @@ zero console errors or warnings. In that same browser at that same moment,
 `Intl.DateTimeFormat("is").resolvedOptions().locale` returned `en-US`. The
 runtime was broken and the page was right.
 
-## Collation: the part no polyfill can fix
+## Collation: the part no polyfill fixes cheaply
 
 This section used to say formatjs had no `Collator` polyfill at all. That was
 asserted rather than checked, and it was wrong:
@@ -331,8 +331,8 @@ compilation" still future work. So collation *is* installable now — the basics
 land, CLDR exactness does not, and 707 KB gzip is not a price a page pays for
 sorting.
 
-Without it, on Chromium and workerd `localeCompare(_, "is")` silently sorts by
-the English alphabet:
+Without it, on Chrome and on workerd `localeCompare(_, "is")` silently sorts by
+the English alphabet — **on Edge for Windows it does not, see below**:
 
 ```
 ö z á a þ t æ e ð d   →  aáædðeötzþ   (en-US fallback)

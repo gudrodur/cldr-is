@@ -122,14 +122,17 @@
 </div>
 <p class="muted" id="provenance"></p>
 
-<h2 id="sorting">Sorting is the one no polyfill can fix</h2>
+<h2 id="sorting">Sorting is the one no polyfill fixes cheaply</h2>
 <p>
   <code>á é í ó ú ý ð þ æ ö</code> are letters in their own right in Icelandic, not
   accented variants. A fallback collation treats them as variants, so
   <strong>Ævar</strong> lands near the top instead of second-to-last and
-  <strong>Þórður</strong> sorts among the T’s. There is no
-  <code>Intl.Collator</code> polyfill — formatjs does not ship one — so unlike
-  dates and numbers, this cannot be fixed by loading data.
+  <strong>Þórður</strong> sorts among the T’s. Unlike dates and numbers there is
+  no cheap fix: a <code>Intl.Collator</code> polyfill does now exist
+  (<code>@formatjs/intl-collator</code>, since May 2026), but it is
+  <strong>707 KB gzipped</strong> and still disagrees with ICU on 12.7% of Latin
+  letter pairs. This page said it did not exist at all until 2026-09-08, which
+  was asserted rather than checked.
 </p>
 
 <div class="cols">
