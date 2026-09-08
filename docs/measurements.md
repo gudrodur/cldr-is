@@ -84,7 +84,7 @@ they buy correct order for the whole Latin script — see below.
 
 One caveat in the polyfill's favour, and it is real: the 191,966 B is behind a
 `shouldPolyfill` gate, so Firefox and Safari visitors download none of it, while
-the 1,618 B ships to everyone including the browsers that never had the bug.
+the 2,774 B ships to everyone including the browsers that never had the bug.
 At this ratio that does not change the conclusion, but it is the honest framing.
 
 ## Speed

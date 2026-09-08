@@ -1,10 +1,17 @@
 // Icelandic collation without Intl.
 //
-// This is the one part of the gap a polyfill CANNOT close: formatjs ships no
-// Collator polyfill, so on Chromium-based browsers and on workerd
-// `localeCompare(_, "is")` falls back to en-US collation and there is nothing
-// to install. It sorts `ö z á a þ t æ e ð d` as `aáædðeötzþ`; Icelandic order
-// is `aádðetzþæö`.
+// The part of the gap a polyfill closes worst. On Chromium-based browsers and
+// on workerd, `localeCompare(_, "is")` falls back to en-US collation: it sorts
+// `ö z á a þ t æ e ð d` as `aáædðeötzþ` where Icelandic order is `aádðetzþæö`.
+//
+// There IS a polyfill — @formatjs/intl-collator, on npm since 2026-05-14. This
+// comment claimed there was none until 2026-09-08, which was asserted rather
+// than checked. Measured against native Intl.Collator("is") under Node full
+// ICU: it gets an ordinary Icelandic name list right, diverges on 10 of 5,473
+// alphabet-and-tailored pairs (all on ä/ø/å), diverges on 25,766 of 202,500
+// Latin letter pairs (12.7%), and costs 707,603 B gzip against this file's
+// 1,710 B. Its own README says full CLDR/UCA data compilation is still future
+// work, which is what those numbers are.
 //
 // Icelandic treats á é í ó ú ý ð þ æ ö as LETTERS IN THEIR OWN RIGHT, not as
 // accented variants — which is exactly what a fallback collation gets wrong.

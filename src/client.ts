@@ -3,7 +3,7 @@
 //
 // KEPT, BUT NOT WHAT THIS PACKAGE RECOMMENDS. The application this came from
 // shipped it behind a flag, measured it and turned it off: 191,966 B gzip,
-// most of it the time-zone table, against 1,618 B for manual formatters that
+// most of it the time-zone table, against 2,774 B for manual formatters that
 // also cover collation, which no polyfill can. See the README's "In the
 // browser" section and docs/measurements.md.
 //

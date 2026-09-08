@@ -306,6 +306,31 @@ describe("compareIs", () => {
     }
   });
 
+  it("pins where the combining-mark ranks stop applying", () => {
+    // The mark order is read off ICU, but it is only reached through the
+    // decompose-to-a-base path in weigh(), which needs NFC to compose the base
+    // and its mark back into ONE code point. That holds for every letter the
+    // Icelandic alphabet uses and for the accented Latin letters around it.
+    // It does not hold for a base with no precomposed form.
+    expect("a\u0306".normalize("NFC")).toBe("\u0103"); // composes -> ordered by rank
+    expect("n\u0306".normalize("NFC")).toBe("n\u0306"); // does not -> fallback band
+
+    // Composing bases: ICU parity.
+    for (const [a, b] of [
+      ["a\u0306", "a\u0302"],
+      ["o\u0307", "o\u0304"],
+      ["u\u030A", "u\u0308"],
+    ]) {
+      expect(sign(compareIs(a!, b!)), `${a} vs ${b}`).toBe(sign(icu(a!, b!)));
+    }
+
+    // Non-composing base: NOT claimed, and this pins that it is a known limit
+    // rather than something that silently changed. Measured 2026-09-08: 37.8%
+    // of the 112x112 mark pairs on such a base diverge.
+    expect(sign(compareIs("n\u0306", "n\u0302"))).toBe(1);
+    expect(sign(icu("n\u0306", "n\u0302"))).toBe(-1);
+  });
+
   it("agrees with ICU on 20 000 pseudo-random pairs, decomposed forms included", () => {
     // Deterministic LCG so a failure is reproducible. The pool is every character
     // the parity claim covers; the wider full-Unicode sweep lives in the PR,

@@ -83,7 +83,7 @@ Measured 2026-09-05 on bare workerd and Chrome 152: for `is`,
 | what it is | load formatjs's CLDR data for `is` | render Icelandic from a month table and a few string joins |
 | browser cost | **191,966 B gzip**, Chromium visitors only | **2,774 B gzip**, everyone |
 | speed | ~800 ns with the formatter reused; **~28,000 ns** per `toLocaleString` call that passes an options object | ~80 ns |
-| covers collation | **no — no Collator polyfill exists** | yes |
+| covers collation | a `Collator` polyfill exists, but **707,603 B gzip and 12.7% off ICU across Latin** — see below | yes |
 | covers arbitrary locales and options | yes | no, only the shapes you write |
 
 Both were built and shipped in the same application. The recommendation below is
@@ -192,9 +192,27 @@ runtime was broken and the page was right.
 
 ## Collation: the part no polyfill can fix
 
-formatjs has no `Collator` polyfill. So on Chromium and workerd,
-`localeCompare(_, "is")` silently sorts by the English alphabet and there is
-nothing to install:
+This section used to say formatjs had no `Collator` polyfill at all. That was
+asserted rather than checked, and it was wrong:
+[`@formatjs/intl-collator`](https://www.npmjs.com/package/@formatjs/intl-collator)
+has been on npm since 2026-05-14. Measured against the native
+`Intl.Collator("is")` it replaces, with Node full ICU as the oracle:
+
+| @formatjs/intl-collator 0.2.7 | |
+|---|---|
+| an ordinary ten-name Icelandic list | **correct** |
+| Icelandic alphabet + tailored letters, 5,473 ordered pairs | 10 divergences, all on `ä` / `ø` / `å` |
+| every ordered pair of the 450 Latin letters, 202,500 | **25,766 divergences (12.7%)** |
+| bundled, minified, gzipped | **707,603 B** |
+
+Its own README says why: it provides "the ECMA-402 constructor/prototype surface
+and a deterministic baseline comparator", with "full CLDR/UCA collation data
+compilation" still future work. So collation *is* installable now — the basics
+land, CLDR exactness does not, and 707 KB gzip is not a price a page pays for
+sorting.
+
+Without it, on Chromium and workerd `localeCompare(_, "is")` silently sorts by
+the English alphabet:
 
 ```
 ö z á a þ t æ e ð d   →  aáædðeötzþ   (en-US fallback)
@@ -241,11 +259,20 @@ have been wrong from memory:
   other spelling.
 - ICU's secondary order for **combining marks is not code-point order**: U+0306
   (breve) sorts before U+0302 (circumflex). There are 59 distinct ranks among
-  the 112 marks in U+0300–U+036F, the order is the same whatever letter carries
-  them, and the marks compare **position by position** rather than as a set — so
-  `ǡ` (a + U+0307 + U+0304) sorts *before* `ā` (a + U+0304). Adding the code
-  points together, which is the obvious shortcut, makes `ô` and `ŏ`
-  interchangeable.
+  the 112 marks in U+0300–U+036F, and they compare **position by position**
+  rather than as a set — so `ǡ` (a + U+0307 + U+0304) sorts *before* `ā`
+  (a + U+0304). Adding the code points together, which is the obvious shortcut,
+  makes `ô` and `ŏ` interchangeable.
+
+  **The limit of this, stated precisely:** those ranks are applied through the
+  decompose-to-a-base path, which only runs when NFC composes the base and its
+  mark back into one code point. `a` + U+0306 composes to `ă` and is ordered
+  correctly; `n` + U+0306 has no precomposed form, so the mark falls to the
+  fallback band and is ordered by code point instead. Over all 112×112 mark
+  pairs on such a base that is **37.8% divergent from ICU** — every Latin letter
+  the alphabet actually uses is fine, and a base with no precomposed form is
+  not. Doing better means making marks primary-ignorable and accumulating them
+  at the secondary level, which is a different algorithm from the one here.
 
 Not claimed: exact ICU order for characters outside the Latin script — Greek,
 Cyrillic, Hebrew, CJK, emoji, unlisted symbols. Two things *are* guaranteed for

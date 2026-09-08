@@ -25,12 +25,35 @@
 import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
 import { createServer } from "node:net";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const WRANGLER_BIN = join(ROOT, "node_modules", ".bin", "wrangler");
+
+// wrangler is deliberately NOT a dependency of this repo — it is a large tool
+// needed by one occasional script. So find it wherever the reader has it: a
+// local install first, then PATH, which is what the README has always said this
+// does. It did not: the path below was hardcoded to node_modules/.bin, so on a
+// fresh `npm ci` the probe died with a bare ENOENT and the reader had no way to
+// know the instruction was wrong rather than their machine.
+function findWrangler() {
+  const local = join(ROOT, "node_modules", ".bin", "wrangler");
+  if (existsSync(local)) return local;
+  const fromPath = spawnSync(process.platform === "win32" ? "where" : "which", ["wrangler"], {
+    encoding: "utf8",
+  });
+  const hit = fromPath.status === 0 && fromPath.stdout.trim().split("\n")[0];
+  if (hit) return hit;
+  console.error(
+    "wrangler not found. It is not a dependency of this repo, on purpose.\n" +
+      "Install it globally (npm i -g wrangler), or run the probe with npx:\n" +
+      "  npx wrangler --version   # to confirm, then re-run npm run probe",
+  );
+  process.exit(2);
+}
+const WRANGLER_BIN = findWrangler();
 
 // The probe itself, as the scratch worker's source. BARE workerd: no imports,
 // no polyfills, no bindings. Dates are fixed (2026-12-07 is a Monday) so the
