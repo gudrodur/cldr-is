@@ -1,0 +1,78 @@
+{
+  "generatedBy": "Node v24.19.0 (full ICU)",
+  "instant": "2026-09-02T12:07:07Z",
+  "names": [
+    "Þórður",
+    "Ævar",
+    "Örn",
+    "Ásta",
+    "Ólafur",
+    "Aðalheiður",
+    "Einar",
+    "Úlfur",
+    "Ýrr",
+    "Ína"
+  ],
+  "cases": [
+    {
+      "label": "Bare date",
+      "expr": "toLocaleDateString(\"is-IS\")",
+      "cldr": "2.9.2026"
+    },
+    {
+      "label": "Long month",
+      "expr": "toLocaleDateString(\"is-IS\", { day:\"numeric\", month:\"long\", year:\"numeric\" })",
+      "cldr": "2. september 2026"
+    },
+    {
+      "label": "Weekday",
+      "expr": "toLocaleDateString(\"is-IS\", { weekday:\"long\" })",
+      "cldr": "miðvikudagur"
+    },
+    {
+      "label": "Short month",
+      "expr": "toLocaleDateString(\"is-IS\", { day:\"numeric\", month:\"short\", year:\"numeric\" })",
+      "cldr": "2. sep. 2026"
+    },
+    {
+      "label": "Date + time",
+      "expr": "toLocaleString(\"is-IS\")",
+      "cldr": "2.9.2026, 12:07:07"
+    },
+    {
+      "label": "Number",
+      "expr": "(1234567.89).toLocaleString(\"is-IS\")",
+      "cldr": "1.234.567,89"
+    },
+    {
+      "label": "Currency",
+      "expr": "(2500).toLocaleString(\"is-IS\", { style:\"currency\", currency:\"ISK\" })",
+      "cldr": "2.500 kr."
+    },
+    {
+      "label": "Relative time",
+      "expr": "new Intl.RelativeTimeFormat(\"is\").format(-2, \"day\")",
+      "cldr": "fyrir 2 dögum"
+    },
+    {
+      "label": "List",
+      "expr": "new Intl.ListFormat(\"is\").format([\"a\",\"b\",\"c\"])",
+      "cldr": "a, b og c"
+    },
+    {
+      "label": "Language name",
+      "expr": "new Intl.DisplayNames([\"is\"],{type:\"language\"}).of(\"is\")",
+      "cldr": "íslenska"
+    },
+    {
+      "label": "Sort",
+      "expr": "names.sort((a,b) => a.localeCompare(b, \"is\"))",
+      "cldr": "Aðalheiður, Ásta, Einar, Ína, Ólafur, Úlfur, Ýrr, Þórður, Ævar, Örn"
+    },
+    {
+      "label": "Plural (correct everywhere)",
+      "expr": "new Intl.PluralRules(\"is\").select(21)",
+      "cldr": "one"
+    }
+  ]
+}
