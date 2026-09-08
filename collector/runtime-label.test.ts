@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { engineLabel, FAMILIES, runtimeLabel } from "./src/index.ts";
+import { appLabel, engineLabel, FAMILIES, runtimeLabel } from "./src/index.ts";
 
 // Real user agents, not shapes invented to match the regexes. The table these
 // pin has been wrong three times in one day — iOS Safari, then Chrome on iOS,
@@ -180,5 +180,103 @@ describe("engineLabel and legacy EdgeHTML", () => {
         "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 EdgiOS/131.0 Mobile/15E148 Safari/604.1",
       ),
     ).toBe("");
+  });
+});
+
+// Android WebView. Note the provenance, because this file's rule is real user
+// agents and this one is NOT captured: the report that prompted it arrived on
+// 2026-09-08 labelled `Chrome 151 / Android` and the string was discarded before
+// storage, as designed. The reader typed "Messenger browser" into the correction
+// box, which is the only reason we know what it was.
+//
+// So the shape below is built from Google's documented WebView convention (a
+// `; wv)` token in the platform section) plus the FB_IAB tokens Facebook's
+// in-app browsers are known to append — not from a captured string. If a real
+// one ever arrives and disagrees, the real one wins and this fixture goes.
+describe("Android WebView is not Chrome", () => {
+  const MESSENGER =
+    "Mozilla/5.0 (Linux; Android 14; SM-S911B Build/UP1A; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/151.0.0.0 Mobile Safari/537.36 [FB_IAB/MESSENGER;FBAV/500.0.0.0;]";
+
+  it("labels a WebView as WebView, not Chrome", () => {
+    expect(runtimeLabel(MESSENGER)).toBe("WebView 151 / Android");
+  });
+
+  it("still reports the Chromium build underneath it", () => {
+    // The version in the label is WebView's; the engine column is what makes it
+    // comparable with a Chrome row. Both are 151 here and that is a fact about
+    // this string, not a rule.
+    expect(engineLabel(MESSENGER)).toBe("Chromium 151");
+  });
+
+  it("does not steal rows from the branded Android browsers", () => {
+    // Every one of these carries Chrome/ too. The WebView rule sits AFTER them
+    // in the family table and must not change what they resolve to.
+    const cases: Array<[string, string]> = [
+      [
+        "Chrome 151 / Android",
+        "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36",
+      ],
+      [
+        "Edge 152 / Android",
+        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Mobile Safari/537.36 EdgA/152.0.0.0",
+      ],
+      [
+        "Samsung Internet 30 / Android",
+        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/30.0 Chrome/152.0.0.0 Mobile Safari/537.36",
+      ],
+    ];
+    for (const [expected, agent] of cases) expect(runtimeLabel(agent)).toBe(expected);
+  });
+
+  it("does not fire on a desktop string that merely contains wv somewhere", () => {
+    // The token is `; wv)` in the platform section, not the letters w and v.
+    expect(
+      runtimeLabel(
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36 SomeThing/wv",
+      ),
+    ).toBe("Chrome 152 / Linux");
+  });
+});
+
+// The embedding app. Same provenance caveat as the WebView block above: these
+// are the documented token conventions of each app, not strings we captured.
+// The one real report behind all of this was stored without its user agent.
+describe("appLabel", () => {
+  it.each([
+    ["[FB_IAB/MESSENGER;FBAV/500.0.0.0;]", "Messenger"],
+    ["[FBAN/MessengerForiOS;FBAV/460.0;]", "Messenger"],
+    ["[FB_IAB/FB4A;FBAV/460.0.0.0;]", "Facebook"],
+    ["[FBAN/FBIOS;FBAV/460.0;]", "Facebook"],
+    ["Instagram 300.0.0.0 Android", "Instagram"],
+    ["MicroMessenger/8.0.49", "WeChat"],
+    ["Line/13.5.0", "LINE"],
+    ["musical_ly_2023 BytedanceWebview/d8a21c6", "TikTok"],
+    ["LinkedInApp/9.30", "LinkedIn"],
+    ["GSA/300.0.0", "Google app"],
+  ])("reads %s", (fragment, expected) => {
+    expect(appLabel(`Mozilla/5.0 (Linux; Android 14; wv) Chrome/152.0.0.0 ${fragment}`)).toBe(
+      expected,
+    );
+  });
+
+  it("is empty, never guessed, for an ordinary browser", () => {
+    expect(
+      appLabel(
+        "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36",
+      ),
+    ).toBe("");
+    expect(appLabel("Mozilla/5.0 (X11; Linux x86_64; rv:155.0) Gecko/20100101 Firefox/155.0")).toBe(
+      "",
+    );
+  });
+
+  it("is a separate axis from the runtime label", () => {
+    // The whole point: one string yields BOTH what renders and what it renders
+    // inside. Folding them together would lose the comparison.
+    const ua =
+      "Mozilla/5.0 (Linux; Android 14; SM-S911B; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/151.0.0.0 Mobile Safari/537.36 [FB_IAB/MESSENGER;FBAV/500.0.0.0;]";
+    expect(runtimeLabel(ua)).toBe("WebView 151 / Android");
+    expect(appLabel(ua)).toBe("Messenger");
+    expect(engineLabel(ua)).toBe("Chromium 151");
   });
 });

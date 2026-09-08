@@ -26,6 +26,12 @@ CREATE TABLE reports (
   -- the region, which cannot affect which ICU language data a build carries.
   -- Exists to answer why two reports from the same Chrome 151 on Android
   -- disagree about whether Icelandic is present.
+  -- The app an in-app browser is running inside — "Messenger", "Instagram".
+  -- Its own axis, not part of `runtime`: `runtime` says what RENDERS (on
+  -- Android an in-app browser is WebView, a different APK from Chrome), this
+  -- says what it renders inside. An app name is low entropy; the user agent it
+  -- is read from is not, and is discarded.
+  app         TEXT    NOT NULL DEFAULT '',
   language    TEXT    NOT NULL DEFAULT '',
   -- NOT NULL with an empty default, and that is load-bearing rather than tidy:
   -- SQLite treats NULL as DISTINCT in a UNIQUE constraint, so a nullable column
@@ -46,5 +52,5 @@ CREATE TABLE reports (
   failing     TEXT    NOT NULL,          -- JSON array of case ids
   country     TEXT,                      -- Cloudflare's two letters, nothing finer
   -- Makes a repeat visit and a flood equally free: both no-op.
-  UNIQUE (runtime, engine, language, said, resolved, resolved_collator, checked, broken)
+  UNIQUE (runtime, engine, app, language, said, resolved, resolved_collator, checked, broken)
 );
