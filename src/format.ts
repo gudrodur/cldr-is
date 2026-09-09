@@ -71,11 +71,70 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 // always behaved. Shared by every date-only shape so they all treat their
 // input identically.
 type DateFields = { year: number; monthIndex: number; day: number };
-function dateFields(input: string | Date): DateFields {
+
+// The value every shape renders when it cannot read a date at all. Chosen over
+// throwing (one bad row would take down a whole list render, and these run
+// inside React renders) and over an empty string (a blank cell cannot be told
+// from a missing value). ICU throws for the same input; this does not, and that
+// is a deliberate divergence, pinned in the tests.
+export const IS_NO_DATE = "—";
+
+// A date-only string, read by its parts. Zone-free by construction: the string
+// carries a calendar date and nothing else, so there is no instant to convert
+// and no zone to convert it in.
+//
+// Accepts what the callers actually produce: YYYY-MM-DD, the same with an
+// unpadded month or day, a reduced-precision YYYY-MM or YYYY (which ICU reads
+// as the first of the month and the first of the year), and any of those
+// followed by a time — the "T" form, the Postgres space form, an offset. It
+// deliberately does NOT accept a month of 13: that looks like a date and is not,
+// and letting it through is how "1. undefined 2026" reached a page. A day the
+// month does not have IS accepted and rolled forward, because that is what ICU
+// does with the same string and because rolling here is zone-free — leaving it
+// to the instant rung below would roll it too, only in the reader's zone, so the
+// answer would depend on which rung fired.
+const DATE_ONLY = /^\+?(\d{4,6})(?:-(\d{1,2})(?:-(\d{1,2}))?)?(?:[T ].*)?$/;
+
+function parseDateOnly(input: string): DateFields | null {
+  const match = DATE_ONLY.exec(input.trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = match[2] === undefined ? 1 : Number(match[2]);
+  const day = match[3] === undefined ? 1 : Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  // Read the fields back off a UTC construction, so an over-long day rolls the
+  // way ICU rolls it and every reader sees the same answer. setUTCFullYear is
+  // needed because Date.UTC maps years 0-99 into 1900+.
+  const rolled = new Date(Date.UTC(year, month - 1, day));
+  rolled.setUTCFullYear(year, month - 1, day);
+  if (Number.isNaN(rolled.getTime())) return null;
+  return {
+    year: rolled.getUTCFullYear(),
+    monthIndex: rolled.getUTCMonth(),
+    day: rolled.getUTCDate(),
+  };
+}
+
+// Whole calendar-date fields from a Date or a string. A Date is read with LOCAL
+// fields, which is what toLocaleDateString renders in the browser and how
+// formatIsDate has always behaved. A string is read by its parts first, and only
+// if that fails is it treated as an instant — with LOCAL fields, so that one
+// instant renders as one date whichever shape it arrived in. Returns null when
+// there is no date in the input at all. Shared by every date-only shape so they
+// all treat their input identically.
+function dateFields(input: string | Date): DateFields | null {
   if (typeof input === "string") {
-    const [y, m, d] = input.slice(0, 10).split("-").map(Number);
-    return { year: y!, monthIndex: m! - 1, day: d! };
+    const parsed = parseDateOnly(input);
+    if (parsed) return parsed;
+    const instant = new Date(input.trim());
+    if (Number.isNaN(instant.getTime())) return null;
+    return {
+      year: instant.getFullYear(),
+      monthIndex: instant.getMonth(),
+      day: instant.getDate(),
+    };
   }
+  if (Number.isNaN(input.getTime())) return null;
   return { year: input.getFullYear(), monthIndex: input.getMonth(), day: input.getDate() };
 }
 
@@ -89,8 +148,9 @@ type UtcDateTimeFields = DateFields & {
   minutes: number;
   seconds: number;
 };
-function utcDateTimeFields(input: string | Date): UtcDateTimeFields {
-  const d = typeof input === "string" ? new Date(input) : input;
+function utcDateTimeFields(input: string | Date): UtcDateTimeFields | null {
+  const d = typeof input === "string" ? new Date(input.trim()) : input;
+  if (Number.isNaN(d.getTime())) return null;
   return {
     year: d.getUTCFullYear(),
     monthIndex: d.getUTCMonth(),
@@ -113,8 +173,9 @@ function utcDateTimeFields(input: string | Date): UtcDateTimeFields {
 // matter where the server or a reader sits. Two conventions in one module, on
 // purpose.
 type LocalDateTimeFields = DateFields & { hours: number; minutes: number; seconds: number };
-function localDateTimeFields(input: string | Date): LocalDateTimeFields {
-  const d = typeof input === "string" ? new Date(input) : input;
+function localDateTimeFields(input: string | Date): LocalDateTimeFields | null {
+  const d = typeof input === "string" ? new Date(input.trim()) : input;
+  if (Number.isNaN(d.getTime())) return null;
   return {
     year: d.getFullYear(),
     monthIndex: d.getMonth(),
@@ -128,8 +189,9 @@ function localDateTimeFields(input: string | Date): LocalDateTimeFields {
 // "12. desember 2020" from a Date or an ISO string. Date-only strings
 // ("2020-12-12") are parsed by their parts to avoid a timezone shifting the day.
 export function formatIsDate(input: string | Date): string {
-  const { year, monthIndex, day } = dateFields(input);
-  return `${day}. ${IS_MONTHS[monthIndex]} ${year}`;
+  const f = dateFields(input);
+  if (!f) return IS_NO_DATE;
+  return `${f.day}. ${IS_MONTHS[f.monthIndex]} ${f.year}`;
 }
 
 // "Mánudagur 12. desember 2020 kl. 20:00" from a timestamptz ISO string or Date.
@@ -137,6 +199,7 @@ export function formatIsDate(input: string | Date): string {
 // wall-clock IS Icelandic wall-clock regardless of where the Worker/browser runs.
 export function formatIsDateTime(input: string | Date): string {
   const f = utcDateTimeFields(input);
+  if (!f) return IS_NO_DATE;
   return `${IS_WEEKDAYS[f.weekday]} ${f.day}. ${IS_MONTHS[f.monthIndex]} ${f.year} kl. ${pad2(f.hours)}:${pad2(f.minutes)}`;
 }
 
@@ -146,13 +209,17 @@ export function formatIsDateTime(input: string | Date): string {
 // string for null (a draft has no publish time).
 export function toDatetimeLocalValue(input: string | Date | null): string {
   if (!input) return "";
-  const d = typeof input === "string" ? new Date(input) : input;
-  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}T${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+  const f = utcDateTimeFields(input);
+  // An empty string, not IS_NO_DATE: this feeds an <input type="datetime-local">,
+  // whose empty state is "" and which would reject anything else.
+  if (!f) return "";
+  return `${f.year}-${pad2(f.monthIndex + 1)}-${pad2(f.day)}T${pad2(f.hours)}:${pad2(f.minutes)}`;
 }
 
 // "20:00" — clock time only, same UTC-is-Icelandic-wall-clock reasoning as above.
 export function formatIsTime(input: string | Date): string {
   const f = utcDateTimeFields(input);
+  if (!f) return IS_NO_DATE;
   return `${pad2(f.hours)}:${pad2(f.minutes)}`;
 }
 
@@ -160,15 +227,17 @@ export function formatIsTime(input: string | Date): string {
 // leading zero. What toLocaleDateString("is-IS") renders with Icelandic data.
 
 export function formatIsDateShort(input: string | Date): string {
-  const { year, monthIndex, day } = dateFields(input);
-  return `${day}.${monthIndex + 1}.${year}`;
+  const f = dateFields(input);
+  if (!f) return IS_NO_DATE;
+  return `${f.day}.${f.monthIndex + 1}.${f.year}`;
 }
 
 // "02.09.2026" — zero-padded day and month: the { day: "2-digit",
 // month: "2-digit", year: "numeric" } option shape.
 export function formatIsDateNumeric(input: string | Date): string {
-  const { year, monthIndex, day } = dateFields(input);
-  return `${pad2(day)}.${pad2(monthIndex + 1)}.${year}`;
+  const f = dateFields(input);
+  if (!f) return IS_NO_DATE;
+  return `${pad2(f.day)}.${pad2(f.monthIndex + 1)}.${f.year}`;
 }
 
 // "02.09.2026, 12:07" — zero-padded date plus hour:minute (the day: "2-digit",
@@ -177,6 +246,7 @@ export function formatIsDateNumeric(input: string | Date): string {
 // passes no timeZone, so this is what the reader saw.
 export function formatIsDateTimeNumeric(input: string | Date): string {
   const f = localDateTimeFields(input);
+  if (!f) return IS_NO_DATE;
   return `${pad2(f.day)}.${pad2(f.monthIndex + 1)}.${f.year}, ${pad2(f.hours)}:${pad2(f.minutes)}`;
 }
 
@@ -184,14 +254,16 @@ export function formatIsDateTimeNumeric(input: string | Date): string {
 // short date plus a time with seconds. Renders the VIEWER's local wall-clock.
 export function formatIsDateTimeDefault(input: string | Date): string {
   const f = localDateTimeFields(input);
+  if (!f) return IS_NO_DATE;
   return `${f.day}.${f.monthIndex + 1}.${f.year}, ${pad2(f.hours)}:${pad2(f.minutes)}:${pad2(f.seconds)}`;
 }
 
 // "2. sep. 2026" — numeric day with the abbreviated month: the
 // { day: "numeric", month: "short", year: "numeric" } option shape.
 export function formatIsDateShortMonth(input: string | Date): string {
-  const { year, monthIndex, day } = dateFields(input);
-  return `${day}. ${IS_MONTHS_SHORT[monthIndex]} ${year}`;
+  const f = dateFields(input);
+  if (!f) return IS_NO_DATE;
+  return `${f.day}. ${IS_MONTHS_SHORT[f.monthIndex]} ${f.year}`;
 }
 
 // "2. sep. 2026, 12:07" — the short-month date plus hour:minute: the
@@ -199,6 +271,7 @@ export function formatIsDateShortMonth(input: string | Date): string {
 // minute: "2-digit" } option shape. Renders the VIEWER's local wall-clock.
 export function formatIsDateTimeShortMonth(input: string | Date): string {
   const f = localDateTimeFields(input);
+  if (!f) return IS_NO_DATE;
   return `${f.day}. ${IS_MONTHS_SHORT[f.monthIndex]} ${f.year}, ${pad2(f.hours)}:${pad2(f.minutes)}`;
 }
 
