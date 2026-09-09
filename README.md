@@ -841,7 +841,9 @@ this README gave, and the difference matters if you were about to give up.
 since.**
 
 - The request: [issues.chromium.org/40624456](https://issues.chromium.org/issues/40624456),
-  open since April 2019 — seven years as of 2026-09-08, 48 comments, 158 stars (as of 2026-09-08).
+  open since April 2019 — seven years as of 2026-09-08, 48 comments, and **58 votes**
+  (measured 2026-09-09; this said "158 stars", a number the tracker does not show —
+  it displays a vote count and no star count at all).
 - The fix: [crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575),
   "Add `is` to common.json", uploaded by a Chromium engineer in May 2023,
   rebased that August, still `NEW`. It adds `is` to `curr_tree`, **`coll_tree`**,

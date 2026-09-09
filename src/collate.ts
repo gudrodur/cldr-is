@@ -15,8 +15,20 @@
 //
 // Icelandic treats á é í ó ú ý ð þ æ ö as LETTERS IN THEIR OWN RIGHT, not as
 // accented variants — which is exactly what a fallback collation gets wrong.
-// Þórður belongs near the end of a name list; en-US puts it among the T's, and
-// Ævar lands second instead of second-to-last.
+// Measured over nine names, Icelandic against en-US:
+//
+//   is     Anna Ari Sigríður Tómas Unnur Vala Þórður Ævar Örvar
+//   en-US  Ævar Anna Ari Örvar Sigríður Tómas Unnur Vala Þórður
+//
+// Ævar goes from last to FIRST (en-US reads Æ as AE) and Örvar from ninth to
+// fourth. Those two are the defect; everything else shifts by a place or two.
+//
+// These lines used to say "Þórður belongs near the end of a name list; en-US
+// puts it among the T's, and Ævar lands second instead of second-to-last."
+// Every clause of that was wrong and none of it was ever run: en-US sorts Þ
+// after T, U, V AND Z, so Þórður stays at the end in both — it is the letter
+// that moves LEAST — and Ævar lands first, not second. The example picked the
+// weakest case and then described it backwards.
 //
 // Pinned to Node full ICU in test/collate.test.ts rather than to taste. Parity
 // was measured over every ordered pair of the alphabet in both cases, 253
