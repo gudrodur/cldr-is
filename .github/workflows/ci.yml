@@ -69,3 +69,55 @@ jobs:
           npm run measure
           answers docs/reference.json > /tmp/fresh.json
           diff -u /tmp/recorded.json /tmp/fresh.json
+
+  # A build that typechecks and cannot be imported is the failure mode this
+  # package spent months in: `exports` pointed at raw `./src/*.ts` and
+  # `allowImportingTsExtensions` forced `noEmit`, so nothing without a
+  # TypeScript-aware bundler could load it and no test said so. Packing the real
+  # tarball and importing every entry point from a project that has never seen
+  # this repo is the only check that would have caught it.
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm pack
+      - name: import every entry point from a clean project
+        run: |
+          mkdir -p /tmp/consumer && cd /tmp/consumer
+          npm init -y > /dev/null
+          npm install "$GITHUB_WORKSPACE"/intl-is-*.tgz
+          cat > check.mjs <<'JS'
+          import { icelandicIntlStatus } from "intl-is/server";
+          import { compareIs, IS_ALPHABET } from "intl-is/collate";
+          import { formatIsDate, formatIsNumber, IS_NO_DATE } from "intl-is/format";
+          import { needsIcelandicIntl } from "intl-is/client";
+
+          const fail = (m) => { console.error("FAIL:", m); process.exitCode = 1; };
+          if (!icelandicIntlStatus().ok) fail("server polyfill did not install Icelandic");
+          if (["Örn", "Ásta", "Þór"].sort(compareIs)[0] !== "Ásta") fail("collate order wrong");
+          if (IS_ALPHABET.length !== 36) fail("alphabet length changed");
+          if (formatIsDate("2026-06-01") !== "1. júní 2026") fail("date format wrong");
+          if (formatIsNumber(1234567.89) !== "1.234.567,89") fail("number format wrong");
+          if (formatIsDate("nope") !== IS_NO_DATE) fail("sentinel not exported/used");
+          if (typeof needsIcelandicIntl() !== "boolean") fail("client entry did not load");
+          if (process.exitCode) throw new Error("entry-point check failed");
+          console.log("all four entry points import and behave");
+          JS
+          node check.mjs
+      - name: the pure entries stay dependency-free
+        run: |
+          # collate and format import nothing, so a consumer that takes only
+          # those bundles none of @formatjs. Asserted on the EMITTED files, not
+          # on the intent — the intent was already true when the exports map
+          # was unusable.
+          for f in dist/collate.js dist/format.js; do
+            if grep -q '^import' "$f"; then
+              echo "FAIL: $f gained an import"; grep '^import' "$f"; exit 1
+            fi
+          done
+          echo "dist/collate.js and dist/format.js import nothing"

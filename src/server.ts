@@ -7,7 +7,7 @@
 // Workers): without this, `new Intl.DateTimeFormat("is").format()` returns
 // "December" and resolvedOptions().locale is "en-US". See docs/measurements.md.
 
-import "./data/is.ts";
+import "./data/is.js";
 
 /** A one-line self-test for a health endpoint: true when Icelandic month names resolve. */
 export function icelandicIntlStatus(): { month: string; ok: boolean } {

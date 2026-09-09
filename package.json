@@ -1,23 +1,38 @@
 {
   "name": "intl-is",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Icelandic dates, numbers and collation for JavaScript on runtimes that ship without the locale data (Chromium-based browsers, Cloudflare Workers). A recipe as much as a package. Not published yet.",
+  "version": "0.1.0",
+  "description": "Icelandic dates, numbers and collation for JavaScript on runtimes that ship without the locale data (Chromium-based browsers, Cloudflare Workers). A recipe as much as a package.",
   "license": "MIT",
-  "author": "Guðröður Atli Jónsson",
+  "author": "Gu\u00f0r\u00f6\u00f0ur Atli J\u00f3nsson",
   "repository": "github:gudrodur/intl-is",
   "type": "module",
   "sideEffects": [
+    "./dist/server.js",
+    "./dist/data/*.js",
     "./src/server.ts",
     "./src/data/*.ts"
   ],
   "exports": {
-    "./server": "./src/server.ts",
-    "./client": "./src/client.ts",
-    "./collate": "./src/collate.ts",
-    "./format": "./src/format.ts"
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.js"
+    },
+    "./collate": {
+      "types": "./dist/collate.d.ts",
+      "default": "./dist/collate.js"
+    },
+    "./format": {
+      "types": "./dist/format.d.ts",
+      "default": "./dist/format.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
+    "dist",
     "src",
     "README.md",
     "LICENSE"
@@ -26,7 +41,9 @@
     "probe": "node scripts/probe-worker-intl.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "measure": "node scripts/measure.mjs"
+    "measure": "node scripts/measure.mjs",
+    "build": "tsc",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@formatjs/intl-datetimeformat": "7.6.1",
@@ -38,5 +55,18 @@
     "date-fns": "^4.4.0",
     "typescript": "7.0.2",
     "vitest": "4.1.11"
-  }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "icelandic",
+    "is",
+    "intl",
+    "cldr",
+    "locale",
+    "collation",
+    "polyfill",
+    "cloudflare-workers"
+  ]
 }
