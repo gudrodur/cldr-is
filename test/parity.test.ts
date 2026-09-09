@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import {
+  IS_NO_DATE,
   IS_MONTHS,
   IS_MONTHS_SHORT,
   IS_WEEKDAYS,
@@ -12,6 +13,7 @@ import {
   formatIsDateTimeNumeric,
   formatIsDateTimeShortMonth,
   formatIsTime,
+  toDatetimeLocalValue,
 } from "../src/format.ts";
 
 // EVERY date shape against full ICU, over a sweep rather than a handful of
@@ -342,26 +344,78 @@ describe("the limits outside the claimed range, pinned so they cannot change sil
     expect(F.longL.format(caesar)).toContain("45");
   });
 
-  it("emits `undefined` for a malformed date-only string, where ICU throws", () => {
-    // KNOWN DEFECT, recorded rather than asserted as correct. dateFields()
-    // splits the first ten characters on "-" and does not check what it got, so
-    // a value that is not YYYY-MM-DD renders the literal text "undefined" or
-    // "NaN" into the page. ICU refuses the same input with a RangeError.
+  it("renders a sentinel for input with no date in it, where ICU throws", () => {
+    // This used to assert the defect: dateFields() split the first ten
+    // characters on "-" without checking, so `formatIsDate("2026-06")` returned
+    // "undefined. júní 2026" and `formatIsDate("not-a-date")` returned
+    // "NaN. undefined NaN". ICU refuses the same input with a RangeError.
     //
-    // It is not reachable from this application today — every caller passes a
-    // timestamptz or a Date — which is why it survived. It is the same class as
-    // a comparator returning 0 for two different strings: a wrong answer wearing
-    // the shape of an answer. Fixing it changes what a live page renders, so it
-    // is a decision, not a cleanup, and this test is here to make sure the
-    // decision is taken rather than forgotten.
-    expect(formatIsDate("2026-06")).toBe("undefined. júní 2026");
-    expect(formatIsDate("not-a-date")).toBe("NaN. undefined NaN");
-    expect(formatIsDateShort("")).toBe("undefined.NaN.0");
-    // A five-digit year breaks the ten-character slice the same way.
-    expect(formatIsDate("10000-01-01")).toBe("0. janúar 10000");
-    // And out-of-range components are echoed rather than normalised: ICU rolls
-    // 2026-02-30 forward to 2. mars.
-    expect(formatIsDate("2026-02-30")).toBe("30. febrúar 2026");
-    expect(F.longU.format(new Date("2026-02-30T00:00:00Z"))).toBe("2. mars 2026");
+    // The ladder replaced it: read the string's own calendar date; failing that
+    // treat it as an instant; failing that render IS_NO_DATE. Throwing was the
+    // other candidate and was rejected — these run inside React renders, where
+    // one bad row would take down a whole list.
+    for (const input of ["not-a-date", "", "2026-13-01", "2026-00-10", "Infinity", "12:00:00"]) {
+      expect(formatIsDate(input), input).toBe(IS_NO_DATE);
+      expect(formatIsDateShort(input), input).toBe(IS_NO_DATE);
+      expect(() => F.longU.format(new Date(input)), `ICU accepted ${input}`).toThrow(RangeError);
+    }
+    // An empty datetime-local input is "", not a sentinel it would reject.
+    expect(toDatetimeLocalValue("not-a-date")).toBe("");
+  });
+});
+
+describe("the ladder: a date-only string keeps its face value in every zone", () => {
+  // Rung 1 reads the string's own calendar date and is zone-free by
+  // construction. That is not merely equal to ICU — for several shapes it is
+  // BETTER than routing through `new Date`, because V8 parses a non-canonical
+  // date-only string as LOCAL midnight. Measured in Pacific/Kiritimati:
+  // `new Date("2026-6-1")` is 2026-05-31T10:00Z, so an ICU reference built from
+  // it renders 31. maí for a string whose face says 1. júní. Rung 1 renders
+  // 1. júní in every zone, which is what the string says.
+  const hostZone = process.env.TZ;
+  afterAll(() => {
+    if (hostZone === undefined) delete process.env.TZ;
+    else process.env.TZ = hostZone;
+  });
+
+  const FACE: Array<[string, string]> = [
+    ["2020-12-12", "12. desember 2020"],
+    ["2026-06-01", "1. júní 2026"],
+    ["2026-6-1", "1. júní 2026"], // unpadded: V8 would read this as local
+    ["  2026-06-01  ", "1. júní 2026"], // whitespace: V8 falls back to local
+    ["2026-06", "1. júní 2026"], // reduced precision, as ICU reads it
+    ["2026", "1. janúar 2026"],
+    ["10000-01-01", "1. janúar 10000"],
+    ["+010000-01-01", "1. janúar 10000"],
+    ["2026-02-30", "2. mars 2026"], // rolled the way ICU rolls it, zone-free
+    ["2026-06-01T12:00:00.000Z", "1. júní 2026"],
+    ["2026-06-01 12:00:00+00", "1. júní 2026"], // the Postgres shape
+  ];
+
+  for (const zone of [
+    "Atlantic/Reykjavik",
+    "UTC",
+    "America/Los_Angeles",
+    "Pacific/Kiritimati",
+    "Asia/Kathmandu",
+    "Pacific/Niue",
+  ]) {
+    it(`renders the same date in ${zone}`, () => {
+      process.env.TZ = zone;
+      for (const [input, expected] of FACE) {
+        expect(formatIsDate(input), `${JSON.stringify(input)} in ${zone}`).toBe(expected);
+      }
+    });
+  }
+
+  it("agrees with ICU wherever ICU parses the string the same way", () => {
+    // The canonical shapes, where `new Date` is zone-stable and the comparison
+    // is therefore meaningful. The shapes above that V8 reads as local are
+    // deliberately absent: there the oracle moves and the face value does not.
+    process.env.TZ = "Atlantic/Reykjavik";
+    for (const [input] of FACE.filter(([i]) => /^\d{4}-\d{2}-\d{2}/.test(i))) {
+      const reference = F.longU.format(new Date(input));
+      expect(formatIsDate(input), input).toBe(reference);
+    }
   });
 });

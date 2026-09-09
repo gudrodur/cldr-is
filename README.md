@@ -394,14 +394,22 @@ Three limits came out of all this, each pinned rather than described:
   requested, drops the marker, so the astronomical year 0 prints as `1` and −44
   as `45`. This module prints the astronomical year. Both are defensible; they
   disagree.
-- **A malformed date-only string renders the literal text `undefined`.**
-  `dateFields()` splits the first ten characters on `-` without checking what it
-  got, so `formatIsDate("2026-06")` returns `"undefined. júní 2026"` and
-  `formatIsDate("not-a-date")` returns `"NaN. undefined NaN"`, where ICU refuses
-  the same input with a `RangeError`. No caller reaches it — every one passes a
-  `timestamptz` or a `Date` — which is exactly why it survived. It is the same
-  class as a comparator returning 0 for two different strings: a wrong answer
-  wearing the shape of an answer.
+- ~~**A malformed date-only string renders the literal text `undefined`.**~~
+  **Fixed.** `dateFields()` used to split the first ten characters on `-` without
+  checking what it got, so `formatIsDate("2026-06")` returned
+  `"undefined. júní 2026"`. It now reads the string's own calendar date; failing
+  that treats it as an instant; failing that returns `IS_NO_DATE` (`—`).
+  Throwing, as ICU does, was the other candidate and was rejected: these run
+  inside React renders, where one bad row would take down a whole list.
+
+  Rung one is **better than routing through `new Date`**, not merely equal to it.
+  V8 parses a non-canonical date-only string as *local* midnight, so in
+  `Pacific/Kiritimati` `new Date("2026-6-1")` is `2026-05-31T10:00Z` and an ICU
+  reference built from it renders **31. maí** for a string whose face says
+  1. júní. Reading the parts renders 1. júní in every zone. Measured across six
+  zones for eleven shapes, including `2026-06`, `2026`, `2026-02-30` (rolled to
+  2. mars, zone-free, the way ICU rolls it), a five-digit year and the Postgres
+  space form.
 
 Two ways to get the test itself wrong:
 
