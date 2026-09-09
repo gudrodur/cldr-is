@@ -837,37 +837,105 @@ workerd release.
 Use this today. But the reason to use it is not the one an earlier version of
 this README gave, and the difference matters if you were about to give up.
 
-**On Chromium, the fix is written. It has been waiting on review since 2023.**
+**On Chromium, a fix was written in 2023, and it has been going backwards
+since.**
 
 - The request: [issues.chromium.org/40624456](https://issues.chromium.org/issues/40624456),
   open since April 2019 — seven years as of 2026-09-08, 48 comments, 158 stars (as of 2026-09-08).
 - The fix: [crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575),
   "Add `is` to common.json", uploaded by a Chromium engineer in May 2023,
   rebased that August, still `NEW`. It adds `is` to `curr_tree`, **`coll_tree`**,
-  `unit_tree` and `zone_tree` — collation included.
+  `unit_tree` and `zone_tree` — collation included, and the root bundle that
+  holds dates and months deliberately not; see below.
 
 The last substantive word on that CL is from October 2023: *"This will increase
 the data 60K for every users. Is this what Chrome team PM decide to increase the
-locale support?"* Nobody has answered it since.
+locale support?"* Nobody has answered it since. The question is nonetheless
+marked **resolved** — in Gerrit anyone may mark a thread resolved, and
+`unresolved_comment_count` is 0 on a change whose only substantive question was
+never answered. Do not read the counter as a state of the discussion.
+
+Two things have happened to it since, neither of them progress, both read off
+the Gerrit API rather than the web page:
+
+- **It no longer applies.** `"mergeable": false` — the red *Merge Conflict*
+  badge. Two and a half years after the last upload, the patch has bit-rotted.
+- **A reviewer took himself off it.** `2024-11-15  David Yeung -> CC (by David
+  Yeung)`, eleven months after Frank Tang's question. One of the two named
+  reviewers stepping down to CC is a human action and the opposite of movement.
 
 So this is **not** a refusal, and not quite the policy wall this README used to
 describe. The filter rule is real —
 [`filters/common.json`](https://chromium.googlesource.com/chromium/deps/icu/+/refs/heads/main/filters/common.json)
 keeps *"only the minimum locale data for non-UI languages"*, and the qualifying
 condition is whether Chrome's own UI is translated, not whether the language is
-used on the web. But a patch exists that would move Icelandic out of that list,
-and what is blocking it is one unanswered question about roughly 60 KB.
+used on the web. But a patch exists that would move Icelandic out of that list.
 
-Which is why the Vivaldi measurement above is worth having: a shipping Chromium
-already carries Icelandic, and the whole difference is **81,200 bytes** — which
-the pending Chromium change's own Gerrit metadata corroborates from the other
-direction, reporting a `size_delta` of **61,776 bytes** on both `icudtl.dat` and
-`icudtb.dat` for the four trees it adds. Vivaldi's figure is larger because it
-also carries `region` and a full root bundle — but that does not close the
-books: 81,168 − 61,776 = 19,392, while `region` (6,336) + root (9,280) + `lang`
-(5,824) comes to 21,440. **2,048 bytes are unaccounted for.** Two independent
-measurements agreeing to within 2 KiB is worth more than either alone; the
-residue is not explained here.
+What is blocking it is no longer *"one unanswered question about roughly 60 KB"*,
+which is what this section said until 2026-09-09 and which was true when it was
+written. It is now three things: the unanswered product question, a merge
+conflict, and a reviewer who left. The conclusion below gets stronger, not
+weaker — but the reason has to be the true one, and "the fix is written and
+waiting on review" reads as nearer than it is.
+
+### The CL does not fix Icelandic dates, and Edge is the proof
+
+This section said until 2026-09-09 that if the CL lands, *"Chrome's half of this
+problem ends, collation included"*. That is wrong, and the patch's own contents
+say so. Read from the CL's version of `filters/common.json` rather than from the
+commit message:
+
+| list | `is` after the patch |
+|---|---|
+| `localeFilter.includelist` | present — **and already was**, which is why Chrome ships an 80-byte `is.res` rather than none |
+| `curr_tree`, `coll_tree`, `unit_tree`, `zone_tree` | **added** — these are the four lines |
+| `region_tree`, `lang_tree` | deliberately left off, and the commit message says why |
+| `resourceFilters` | **untouched** — nothing stops the root bundle being trimmed to a stub |
+
+So the patch adds the four auxiliary trees and leaves `is.res` at 80 bytes. That
+configuration is not hypothetical: **it is what Microsoft Edge ships today**, and
+Edge's measured behaviour is what Chrome's would become — collation correct,
+dates English, currency wrong despite `curr/is.res` being present in full.
+
+The strongest evidence is not Edge, though. **The CL regenerates
+`common/icudtl.dat`, so the answer is inside the patch** — no inference about
+what a build would do. Parsing that file's package table of contents with
+[`scripts/icu-entry-sizes.mjs`](scripts/icu-entry-sizes.mjs):
+
+```
+icudt73l/coll/is.res    23,872
+icudt73l/curr/is.res    14,944
+icudt73l/unit/is.res     7,120
+icudt73l/zone/is.res    15,760
+icudt73l/is.res             80   <- the main bundle, still a stub
+icudt73l/lang/is.res       112   <- still a stub
+                        ------
+four trees added        61,696
+Gerrit size_delta       61,776
+difference                  80
+```
+
+Eighty bytes, fully explained: four entry names, NUL-terminated (48 B), plus four
+`{nameOffset, dataOffset}` pairs (32 B). The package index growing, and nothing
+else.
+
+**That retires the "2,048 bytes are unaccounted for" residue, and it retires the
+explanation this section gave for it on 2026-09-09, which was wrong.** The claim
+was that 2,048 is what the ICU package costs to carry four more entries. It is
+not; the package costs 80. The 2,048 was **ICU version drift**, and the mistake
+was comparing across versions without noticing: the CL's binaries are `icudt73l`
+and every browser measured here is `icudt78l`. Between those releases `unit`
+fell 7,120 → 5,840, `zone` 15,760 → 15,280 and `curr` 14,944 → 14,736, which is
+1,968 of the 2,048 by itself. An omp reviewer named version drift as a rival
+hypothesis; downloading the CL's own `.dat` rather than reasoning about it
+settled it.
+
+**The complete fix is a little under 70 KB of data**: the CL's four trees plus
+roughly 9 KB to stop trimming the main bundle (Vivaldi's full `is.res` is 9,360 B
+against Chrome's 80 B stub — an ICU 78 figure against the CL's ICU 73 binaries,
+hence the rounding). That is a more useful number for the product question than
+"60K", because the CL's 60K is **86.6%** of the bytes and none of the part a user
+sees. This section said "three quarters" until the arithmetic was checked.
 
 **workerd#64 is not a refusal. It is silence, which is worse.**
 [cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64) was
@@ -903,10 +971,12 @@ another bug adds nothing to any of them; the useful contribution is a
 measurement, which is why the Vivaldi figure went on the two live threads rather
 than into a new issue.
 
-Two things worth watching. The near one is
+Two things worth watching. The nearer one is
 [crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575)
-— if it lands, Chrome's half of this problem ends, collation included. The far
-one is **ICU4X**, which both threads independently point at: the workerd
+— if it lands, Chrome's **collation** is fixed and its dates are not, for the
+reason set out above. "Nearer" is relative: it does not currently apply to
+`main`, so landing it now means somebody rebasing it first, and the product
+question it was stopped on has been unanswered for two years. The far one is **ICU4X**, which both threads independently point at: the workerd
 reporter ("I'm starting to understand why the Unicode Consortium is pushing
 ICU4X") and Mozilla's own resolution. Data loaded on demand per locale is the
 shape that makes this question go away, rather than the shape that makes someone

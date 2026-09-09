@@ -86,18 +86,37 @@ export const IS_NO_DATE = "—";
 // Accepts what the callers actually produce: YYYY-MM-DD, the same with an
 // unpadded month or day, a reduced-precision YYYY-MM or YYYY (which ICU reads
 // as the first of the month and the first of the year), and any of those
-// followed by a time — the "T" form, the Postgres space form, an offset. It
+// followed by a time — the "T" form and the Postgres space form. It
 // deliberately does NOT accept a month of 13: that looks like a date and is not,
 // and letting it through is how "1. undefined 2026" reached a page. A day the
 // month does not have IS accepted and rolled forward, because that is what ICU
 // does with the same string and because rolling here is zone-free — leaving it
 // to the instant rung below would roll it too, only in the reader's zone, so the
 // answer would depend on which rung fired.
-const DATE_ONLY = /^\+?(\d{4,6})(?:-(\d{1,2})(?:-(\d{1,2}))?)?(?:[T ].*)?$/;
+//
+// A time carrying a NONZERO offset is the one tail this rung refuses. Such a
+// string does not name a calendar date at all, it names an instant, and reading
+// its face digits gives a different day from the one the instant falls on:
+// "2026-09-02T00:30:00+14:00" is 1 September in Iceland, and this rung used to
+// call it 2 September while formatIsDateTime called it 1 September — one string,
+// one zone, two days. Handing it to the instant rung below makes a string that
+// names an instant behave exactly like `new Date` of that instant, which is the
+// only property that can hold in every reader's zone. A zero tail — trailing Z,
+// +00, +0000, +00:00 — is left here, because for those the face date IS the UTC
+// date and nothing moves.
+const DATE_ONLY = /^\+?(\d{4,6})(?:-(\d{1,2})(?:-(\d{1,2}))?)?([T ].*)?$/;
+
+function hasNonzeroOffset(tail: string): boolean {
+  if (/Z$/i.test(tail)) return false;
+  const offset = /[+-](\d{2}):?(\d{2})?$/.exec(tail);
+  if (!offset) return false;
+  return !(offset[1] === "00" && (offset[2] === undefined || offset[2] === "00"));
+}
 
 function parseDateOnly(input: string): DateFields | null {
   const match = DATE_ONLY.exec(input.trim());
   if (!match) return null;
+  if (match[4] !== undefined && hasNonzeroOffset(match[4])) return null;
   const year = Number(match[1]);
   const month = match[2] === undefined ? 1 : Number(match[2]);
   const day = match[3] === undefined ? 1 : Number(match[3]);

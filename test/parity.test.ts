@@ -419,3 +419,81 @@ describe("the ladder: a date-only string keeps its face value in every zone", ()
     }
   });
 });
+
+describe("the ladder: a nonzero offset means an instant, not a face value", () => {
+  // The tail is the part of the string this rung used to ignore. Ignoring a
+  // ZERO tail is right — for "…T00:30:00Z" the face date IS the UTC date — but
+  // ignoring a nonzero one made the same string render two different days
+  // depending on which shape was asked. Measured before the fix, all three in
+  // Atlantic/Reykjavik, where nothing should move at all:
+  //
+  //   formatIsDate("2026-09-02T00:30:00+14:00")      2. september
+  //   formatIsDateTime(same string)                  1. september kl. 10:30
+  //
+  // The string names an instant, so it now falls to the instant rung and reads
+  // like the Date of that instant. That is the only property that can hold in
+  // every reader's zone: rung 2 reads LOCAL fields by design, so a reader in
+  // Kiritimati still sees a different calendar day from formatIsDateTime's UTC
+  // — exactly as they already do for a Date input, which is the documented
+  // convention rather than a second bug.
+  const hostZone = process.env.TZ;
+  afterAll(() => {
+    if (hostZone === undefined) delete process.env.TZ;
+    else process.env.TZ = hostZone;
+  });
+
+  const NONZERO = [
+    "2026-09-02T00:30:00+14:00",
+    "2026-09-01T22:00:00-05:00",
+    "2026-09-02 00:30:00+02", // the Postgres short-offset shape
+    "2026-09-02T00:30:00+0530",
+    "2026-09-02T00:30:00-00:30",
+  ];
+  // A zero tail in every spelling Postgres and JSON produce. These must NOT
+  // move: they stay on the face rung, byte for byte the old behaviour.
+  const ZERO = [
+    "2026-09-02T00:30:00Z",
+    "2026-09-02T00:30:00.000Z",
+    "2026-09-02 00:30:00+00",
+    "2026-09-02 00:30:00+0000",
+    "2026-09-02T00:30:00+00:00",
+  ];
+
+  for (const zone of [
+    "Atlantic/Reykjavik",
+    "UTC",
+    "America/Los_Angeles",
+    "Pacific/Kiritimati",
+    "Asia/Kathmandu",
+    "Pacific/Niue",
+  ]) {
+    it(`reads an offset string as its instant in ${zone}`, () => {
+      process.env.TZ = zone;
+      for (const input of NONZERO) {
+        // The property, not a fixed string: the string form and the Date form
+        // of one instant are the same date.
+        expect(formatIsDate(input), `${input} in ${zone}`).toBe(formatIsDate(new Date(input)));
+        // The ICU reference is built HERE, not at module load: an
+        // Intl.DateTimeFormat with no timeZone resolves the zone when it is
+        // constructed, so a module-level one would carry the host's zone into
+        // every iteration and quietly stop testing anything.
+        expect(formatIsDate(input), `${input} vs ICU in ${zone}`).toBe(
+          new Intl.DateTimeFormat("is-IS", LONG).format(new Date(input)),
+        );
+      }
+      for (const input of ZERO) {
+        expect(formatIsDate(input), `${input} in ${zone}`).toBe("2. september 2026");
+      }
+    });
+  }
+
+  it("a nonzero offset no longer splits the date shape from the datetime shape in Iceland", () => {
+    // The reader this package is for is in Iceland, where local IS UTC, so the
+    // two shapes have to agree there or one of them is lying about the day.
+    process.env.TZ = "Atlantic/Reykjavik";
+    for (const input of [...NONZERO, ...ZERO]) {
+      const day = formatIsDate(input).split(".")[0];
+      expect(formatIsDateTime(input), input).toContain(`${day}. `);
+    }
+  });
+});

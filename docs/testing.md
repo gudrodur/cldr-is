@@ -383,3 +383,49 @@ name when the two agree over the range it cares about. The parity floor here is
 1970 because that is where the data starts being about Iceland — not where the
 module starts being right, and there is no way to find out which from inside
 JavaScript.
+
+## 20. `diff` of two empty streams exits 0, and that reads as agreement
+
+The claim "`src/format.ts` and xj-greenfield's `is-date.ts` are byte-identical
+from `IS_WEEKDAYS` down" was checked, repeatedly, with:
+
+```bash
+diff <(sed -n '/^const IS_WEEKDAYS/,$p' a.ts) <(sed -n '/^const IS_WEEKDAYS/,$p' b.ts)
+```
+
+Both files declare `export const IS_WEEKDAYS`, so the address `^const` matched
+**nothing in either file**, `sed` printed nothing twice, and `diff` compared two
+empty streams and exited 0. The check reported agreement every time it was run,
+and the files had never agreed: greenfield's copy carries call-site comments
+naming its own routes, which the package cannot have and should not.
+
+The measured truth is narrower and worth stating precisely: the two are
+**code-identical and comment-divergent** — 34 non-comment lines apart, all of
+them `formatIsNumber`/`roundDecimal`, which greenfield keeps in
+`lib/public-number.ts` instead.
+
+This is the same shape as the `|| echo` trap in `~/.claude/CLAUDE.md`: a
+pipeline's *failure to select anything* is reported as a *finding about the
+content*. A comparison whose inputs are empty must be an error, not a pass. Make
+the extractor assert it extracted something:
+
+```bash
+sed -n '/^export const IS_WEEKDAYS/,$p' a.ts | grep -q . || { echo "marker not found"; exit 2; }
+```
+
+Two-thirds of a "verify the mirror" step is verifying that the step ran.
+
+## 21. A fix with no pin passes the suite, and the suite is the reason you believe it
+
+Two changes shipped together here. Reverting the date fix failed 7 tests, in six
+zones, immediately. Reverting the collation fix — putting the ligatures back at
+the wrong level — failed **nothing**: 161 tests passed with the defect
+reinstated, because the new behaviour had no pin, only a hand-run script that
+was not in the repo.
+
+A green suite after a change means the change did not break the pins that exist.
+It says nothing whatever about the change itself. The only evidence that a new
+pin is a pin is watching it fail: break the fix deliberately, in each of the
+distinct ways it could be got wrong (here: level too high, level too low for the
+one exception, expansion absent entirely), and confirm a different failure each
+time. Three mutations, three failures, then the fix goes back.
