@@ -845,7 +845,8 @@ since.**
 - The fix: [crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575),
   "Add `is` to common.json", uploaded by a Chromium engineer in May 2023,
   rebased that August, still `NEW`. It adds `is` to `curr_tree`, **`coll_tree`**,
-  `unit_tree` and `zone_tree` — collation included.
+  `unit_tree` and `zone_tree` — collation included, and the root bundle that
+  holds dates and months deliberately not; see below.
 
 The last substantive word on that CL is from October 2023: *"This will increase
 the data 60K for every users. Is this what Chrome team PM decide to increase the
@@ -877,16 +878,50 @@ conflict, and a reviewer who left. The conclusion below gets stronger, not
 weaker — but the reason has to be the true one, and "the fix is written and
 waiting on review" reads as nearer than it is.
 
-Which is why the Vivaldi measurement above is worth having: a shipping Chromium
-already carries Icelandic, and the whole difference is **81,200 bytes** — which
-the pending Chromium change's own Gerrit metadata corroborates from the other
-direction, reporting a `size_delta` of **61,776 bytes** on both `icudtl.dat` and
-`icudtb.dat` for the four trees it adds. Vivaldi's figure is larger because it
-also carries `region` and a full root bundle — but that does not close the
-books: 81,168 − 61,776 = 19,392, while `region` (6,336) + root (9,280) + `lang`
-(5,824) comes to 21,440. **2,048 bytes are unaccounted for.** Two independent
-measurements agreeing to within 2 KiB is worth more than either alone; the
-residue is not explained here.
+### The CL does not fix Icelandic dates, and Edge is the proof
+
+This section said until 2026-09-09 that if the CL lands, *"Chrome's half of this
+problem ends, collation included"*. That is wrong, and the patch's own contents
+say so. Read from the CL's version of `filters/common.json` rather than from the
+commit message:
+
+| list | `is` after the patch |
+|---|---|
+| `localeFilter.includelist` | present — **and already was**, which is why Chrome ships an 80-byte `is.res` rather than none |
+| `curr_tree`, `coll_tree`, `unit_tree`, `zone_tree` | **added** — these are the four lines |
+| `region_tree`, `lang_tree` | deliberately left off, and the commit message says why |
+| `resourceFilters` | **untouched** — nothing stops the root bundle being trimmed to a stub |
+
+So the patch adds the four auxiliary trees and leaves `is.res` at 80 bytes. That
+configuration is not hypothetical: **it is what Microsoft Edge ships today**, and
+Edge's measured behaviour is what Chrome's would become — collation correct,
+dates English, currency wrong despite `curr/is.res` being present in full.
+
+The byte accounting closes exactly, which is the check that this reading is
+right and not a story about the diff:
+
+```
+CL 4514575, curr + coll + unit + zone            59,728 B
+CL's Gerrit size_delta per .dat                  61,776 B
+  package/TOC overhead                            2,048 B   = 2 KiB exactly
+
+Edge 152, total Icelandic (measured)             65,968 B
+  = the CL's four trees                          59,728
+  + region_tree, which the CL leaves off          6,048
+  + Chrome's own stubs (root 80, lang 112)          192
+```
+
+That also retires the open residue this section used to carry. It said *"2,048
+bytes are unaccounted for"*, reached by subtracting Vivaldi's extra trees from
+the `size_delta`. The 2,048 is not locale data at all — it is what the ICU
+package costs to carry four more entries, and routing the subtraction through
+Edge rather than Vivaldi makes every other byte land.
+
+**The complete fix is 69,008 bytes of data**: the CL's 59,728 plus 9,280 for the
+root bundle Vivaldi carries and Chrome trims. Under 70 KiB for dates, months,
+weekdays, number symbols, collation, currency, units and zones together — which
+is a more useful number for the product question on the CL than "60K", because
+60K buys three quarters of the answer.
 
 **workerd#64 is not a refusal. It is silence, which is worse.**
 [cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64) was
@@ -924,10 +959,10 @@ than into a new issue.
 
 Two things worth watching. The nearer one is
 [crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575)
-— if it lands, Chrome's half of this problem ends, collation included. "Nearer"
-is relative: it does not currently apply to `main`, so landing it now means
-somebody rebasing it first, and the product question it was stopped on has been
-unanswered for two years. The far one is **ICU4X**, which both threads independently point at: the workerd
+— if it lands, Chrome's **collation** is fixed and its dates are not, for the
+reason set out above. "Nearer" is relative: it does not currently apply to
+`main`, so landing it now means somebody rebasing it first, and the product
+question it was stopped on has been unanswered for two years. The far one is **ICU4X**, which both threads independently point at: the workerd
 reporter ("I'm starting to understand why the Unicode Consortium is pushing
 ICU4X") and Mozilla's own resolution. Data loaded on demand per locale is the
 shape that makes this question go away, rather than the shape that makes someone
