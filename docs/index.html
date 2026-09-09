@@ -126,8 +126,11 @@
 <p>
   <code>á é í ó ú ý ð þ æ ö</code> are letters in their own right in Icelandic, not
   accented variants. A fallback collation treats them as variants, so
-  <strong>Ævar</strong> lands near the top instead of second-to-last and
-  <strong>Þórður</strong> sorts among the T’s. Unlike dates and numbers there is
+  <strong>Ævar</strong> lands <em>first</em> instead of second-to-last and
+  <strong>Örvar</strong> jumps from last to fourth. (This said “Þórður sorts among
+  the T’s” until 2026-09-09; measured, en-US sorts Þ after T, U, V and Z, so
+  Þórður stays at the end in both and is the letter that moves least.) Unlike
+  dates and numbers there is
   no cheap fix: a <code>Intl.Collator</code> polyfill does now exist
   (<code>@formatjs/intl-collator</code>, since May 2026), but it is
   <strong>707 KB gzipped</strong> and still disagrees with ICU on 12.7% of Latin
