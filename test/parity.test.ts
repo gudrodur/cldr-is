@@ -38,6 +38,12 @@ import {
 const L = "is-IS";
 const utc = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(L, { ...o, timeZone: "UTC" });
 const local = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(L, o);
+// The instant shapes claim UTC wall clock IS Icelandic wall clock. Referencing
+// them against timeZone: "UTC" tests the implementation against itself — the
+// module reads getUTCHours(), so the two agree by construction whatever the
+// claim is worth (docs/testing.md rule 3). Reference them against the ZONE.
+const rvk = (o: Intl.DateTimeFormatOptions) =>
+  new Intl.DateTimeFormat(L, { ...o, timeZone: "Atlantic/Reykjavik" });
 
 // The option bags are the ones the replaced toLocale* call sites passed.
 const NUMERIC = { day: "2-digit", month: "2-digit", year: "numeric" } as const;
@@ -58,6 +64,9 @@ const F = {
   dtSmL: local({ ...SHORT_MONTH, ...HM }),
   weekdayU: utc({ weekday: "long" }),
   timeU: utc(HM),
+  weekdayRvk: rvk({ weekday: "long" }),
+  longRvk: rvk(LONG),
+  timeRvk: rvk(HM),
 };
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -74,6 +83,8 @@ type Shape = {
   kind: Kind;
   run: (input: string | Date) => string;
   icu: (d: Date) => string;
+  /** Earliest year the shape's claim holds. See the Reykjavik block below. */
+  minYear?: number;
 };
 
 const SHAPES: Shape[] = [
@@ -102,16 +113,30 @@ const SHAPES: Shape[] = [
     name: "formatIsDateTime(str)",
     kind: "iso-string",
     run: formatIsDateTime,
-    icu: (d) => `${cap(F.weekdayU.format(d))} ${F.longU.format(d)} kl. ${F.timeU.format(d)}`,
+    icu: (d) => `${cap(F.weekdayRvk.format(d))} ${F.longRvk.format(d)} kl. ${F.timeRvk.format(d)}`,
+    minYear: 1970,
   },
   {
     name: "formatIsDateTime(Date)",
     kind: "date",
     run: formatIsDateTime,
-    icu: (d) => `${cap(F.weekdayU.format(d))} ${F.longU.format(d)} kl. ${F.timeU.format(d)}`,
+    icu: (d) => `${cap(F.weekdayRvk.format(d))} ${F.longRvk.format(d)} kl. ${F.timeRvk.format(d)}`,
+    minYear: 1970,
   },
-  { name: "formatIsTime(str)", kind: "iso-string", run: formatIsTime, icu: (d) => F.timeU.format(d) },
-  { name: "formatIsTime(Date)", kind: "date", run: formatIsTime, icu: (d) => F.timeU.format(d) },
+  {
+    name: "formatIsTime(str)",
+    kind: "iso-string",
+    run: formatIsTime,
+    icu: (d) => F.timeRvk.format(d),
+    minYear: 1970,
+  },
+  {
+    name: "formatIsTime(Date)",
+    kind: "date",
+    run: formatIsTime,
+    icu: (d) => F.timeRvk.format(d),
+    minYear: 1970,
+  },
 ];
 
 describe("every date shape agrees with full ICU over a sweep", () => {
@@ -121,6 +146,7 @@ describe("every date shape agrees with full ICU over a sweep", () => {
   // proleptic-year limit below).
   const N = 5000;
   const instants: Date[] = [];
+  const modernInstants: Date[] = [];
   {
     let seed = 20260909;
     const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
@@ -138,11 +164,25 @@ describe("every date shape agrees with full ICU over a sweep", () => {
       );
       if (!Number.isNaN(d.getTime())) instants.push(d);
     }
+    while (modernInstants.length < N) {
+      const d = new Date(
+        Date.UTC(
+          1970 + Math.floor(next() * 430),
+          Math.floor(next() * 12),
+          1 + Math.floor(next() * 28),
+          Math.floor(next() * 24),
+          Math.floor(next() * 60),
+          Math.floor(next() * 60),
+          Math.floor(next() * 1000),
+        ),
+      );
+      if (!Number.isNaN(d.getTime())) modernInstants.push(d);
+    }
   }
 
   for (const shape of SHAPES) {
     it(`${shape.name} matches ICU on ${N} instants`, () => {
-      for (const instant of instants) {
+      for (const instant of shape.minYear ? modernInstants : instants) {
         const iso = instant.toISOString();
         let input: string | Date;
         let reference: string;
@@ -208,7 +248,88 @@ describe("the exported name tables against CLDR", () => {
   });
 });
 
-describe("the two limits, pinned so they cannot change silently", () => {
+describe("the claim that UTC wall clock is Icelandic wall clock", () => {
+  // The instant shapes (formatIsDateTime, formatIsTime, toDatetimeLocalValue)
+  // read getUTC* and render the result as Icelandic time. That is a claim about
+  // the world, not about the code, and until 2026-09-09 nothing tested it: the
+  // reference passed timeZone: "UTC", so both sides used the same convention and
+  // agreed no matter what Iceland does. Rule 3 of docs/testing.md, in the file
+  // written to fix a different corpus problem.
+
+  it("holds for every instant the domain reaches", () => {
+    // 0 divergences over 50,000 instants x 2 shapes, 1968-2067, measured
+    // against the ZONE rather than against UTC.
+    for (const [y, mo, d, h, mi] of [
+      [1970, 0, 1, 0, 0],
+      [1968, 6, 14, 13, 45],
+      [2026, 2, 29, 1, 30], // the EU spring-forward instant: Iceland does not move
+      [2026, 9, 25, 1, 30], // the EU fall-back instant: Iceland does not move
+      [2026, 6, 4, 23, 59],
+      [2400, 11, 31, 23, 59],
+    ] as const) {
+      const instant = new Date(Date.UTC(y, mo, d, h, mi));
+      expect(formatIsTime(instant), instant.toISOString()).toBe(F.timeRvk.format(instant));
+    }
+  });
+
+  it("does NOT hold before 1970, and the platform cannot tell you why", () => {
+    // Two separate things, and the second is the one that would waste a day.
+    //
+    // 1. Against timeZone: "Atlantic/Reykjavik", this module diverges on 39.6%
+    //    of a 100,000-instant sweep over 1600-2400 — 100% of every instant
+    //    before 1912, by 16 minutes and 8 seconds.
+    //
+    // 2. That 16:08 is not Reykjavik's. tzdata merges zones that have agreed
+    //    since 1970 and keeps only one history: Atlantic/Reykjavik is a
+    //    BACKWARD LINK to Africa/Abidjan, so what the platform calls Icelandic
+    //    local time before 1912 is ABIDJAN's local mean time (4.03 W, hence
+    //    -00:16:08). Reykjavik sits at 21.9 W, so its LMT was about -01:28, and
+    //    Iceland's real history — UTC-1 from 1908, with DST in 1917-1919, 1921
+    //    and 1939-1968 — is not in any JavaScript runtime at all.
+    //
+    // So the parity floor is 1970 because that is where the DATA starts being
+    // about Iceland, not because 1970 is where the module starts being right.
+    // Nothing on either side of this can be checked from JavaScript.
+    const before = new Date(Date.UTC(1900, 0, 1, 12, 0));
+    expect(formatIsTime(before)).toBe("12:00");
+    expect(F.timeRvk.format(before)).toBe("11:43");
+
+    const abidjan = new Intl.DateTimeFormat(L, { ...HM, timeZone: "Africa/Abidjan" });
+    expect(
+      abidjan.format(before),
+      "Atlantic/Reykjavik is a tzdata link to Africa/Abidjan; if this ever fails, tzdata unmerged them",
+    ).toBe(F.timeRvk.format(before));
+  });
+});
+
+describe("a DST transition in the viewer's zone", () => {
+  // Iceland has had no DST since 1968 and nearly every European country has
+  // one, so the LOCAL shapes — which render the viewer's wall clock — meet an
+  // offset change that no Icelandic instant ever produces. Measured: of the
+  // 5,000 sweep instants above, 30.1% carry a summer offset in
+  // Europe/Copenhagen and 34.4% in America/Los_Angeles, and **0.0% in
+  // Atlantic/Reykjavik**. A suite run only in Reykjavik tests this axis on
+  // exactly nothing, which is why CI runs elsewhere too.
+  //
+  // These pass today (getHours() is DST-aware, so both sides move together).
+  // They are here because "it works" and "we checked" are different states.
+  const EU_2026 = { spring: Date.UTC(2026, 2, 29, 1, 0), autumn: Date.UTC(2026, 9, 25, 1, 0) };
+
+  for (const [label, base] of Object.entries(EU_2026)) {
+    it(`${label}: every list shape matches ICU across the transition`, () => {
+      // A second before, the instant itself, and an hour after — the skipped
+      // hour in spring and the repeated one in autumn.
+      for (const delta of [-3_600_000, -1000, 0, 1000, 3_600_000, 7_200_000]) {
+        const d = new Date(base + delta);
+        expect(formatIsDateTimeNumeric(d), `${label}${delta}`).toBe(F.dtNumL.format(d));
+        expect(formatIsDateTimeDefault(d), `${label}${delta}`).toBe(d.toLocaleString(L));
+        expect(formatIsDateTimeShortMonth(d), `${label}${delta}`).toBe(F.dtSmL.format(d));
+      }
+    });
+  }
+});
+
+describe("the limits outside the claimed range, pinned so they cannot change silently", () => {
   it("does not claim ICU parity for years at or below zero", () => {
     // ICU renders the YEAR OF ERA and, with no era requested, drops the marker:
     // the astronomical year 0 prints as "1", -44 as "45". This module prints the

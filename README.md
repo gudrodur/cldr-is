@@ -353,8 +353,43 @@ walks every shape instead:
 > same sweep against the copy of this module running in production.
 > **~3.8 million comparisons, zero divergences** (2026-09-09).
 
-Two limits came out of it, and both are pinned rather than described:
+### Iceland has no DST, and that is a hole in the test bench
 
+Iceland dropped daylight saving in 1968 and nearly every European country kept
+it. So the zone the code is *for* is the one zone where an offset never moves,
+and a suite run there exercises the whole DST axis on nothing at all. Measured
+over the sweep's own 5,000 instants: **30.1% carry a summer offset in
+`Europe/Copenhagen`, 34.4% in `America/Los_Angeles`, and 0.0% in
+`Atlantic/Reykjavik`.**
+
+That is the real reason CI runs elsewhere, sharper than the date-line one. It is
+not theory: changing `formatIsTime` to read local fields instead of UTC fails
+**four** tests in Copenhagen and **one** in Reykjavík — and that one only because
+of the historical pin below. Without it, the mutation is invisible in Iceland.
+
+### The instant shapes were testing themselves
+
+`formatIsDateTime`, `formatIsTime` and `toDatetimeLocalValue` read `getUTC*` and
+render the result as Icelandic time, on the ground that Iceland is UTC+0
+year-round. That is a claim about the world. Referencing it against
+`timeZone: "UTC"` — which this repo did — asserts `getUTCHours()` equals
+`Intl(timeZone: "UTC")`, an identity between two spellings of the same thing. It
+cannot fail for any reason connected to Iceland. Against the **zone** it can, and
+does.
+
+Three limits came out of all this, each pinned rather than described:
+
+- **The Icelandic claim holds from 1970, and before that nothing can check it.**
+  Against `timeZone: "Atlantic/Reykjavik"` the module diverges on 39.6% of a
+  100,000-instant sweep over 1600–2400 — every instant before 1912, by 16
+  minutes 8 seconds. **That 16:08 is not Reykjavík's.** tzdata merges zones that
+  have agreed since 1970 and keeps one history, so `Atlantic/Reykjavik` is a
+  backward link to `Africa/Abidjan`, and what the platform calls Icelandic local
+  time before 1912 is *Abidjan's* local mean time (4.03° W). Reykjavík is at
+  21.9° W, so its LMT was about −01:28, and Iceland's real history — UTC−1 from
+  1908, with DST in 1917–1919, 1921 and 1939–1968 — **is not in any JavaScript
+  runtime**. The floor is 1970 because that is where the data starts being about
+  Iceland, not where the module starts being right.
 - **Parity stops at year 1.** ICU renders the year of era and, with no era
   requested, drops the marker, so the astronomical year 0 prints as `1` and −44
   as `45`. This module prints the astronomical year. Both are defensible; they
