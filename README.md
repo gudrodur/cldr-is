@@ -837,7 +837,8 @@ workerd release.
 Use this today. But the reason to use it is not the one an earlier version of
 this README gave, and the difference matters if you were about to give up.
 
-**On Chromium, the fix is written. It has been waiting on review since 2023.**
+**On Chromium, a fix was written in 2023, and it has been going backwards
+since.**
 
 - The request: [issues.chromium.org/40624456](https://issues.chromium.org/issues/40624456),
   open since April 2019 — seven years as of 2026-09-08, 48 comments, 158 stars (as of 2026-09-08).
@@ -848,15 +849,33 @@ this README gave, and the difference matters if you were about to give up.
 
 The last substantive word on that CL is from October 2023: *"This will increase
 the data 60K for every users. Is this what Chrome team PM decide to increase the
-locale support?"* Nobody has answered it since.
+locale support?"* Nobody has answered it since. The question is nonetheless
+marked **resolved** — in Gerrit anyone may mark a thread resolved, and
+`unresolved_comment_count` is 0 on a change whose only substantive question was
+never answered. Do not read the counter as a state of the discussion.
+
+Two things have happened to it since, neither of them progress, both read off
+the Gerrit API rather than the web page:
+
+- **It no longer applies.** `"mergeable": false` — the red *Merge Conflict*
+  badge. Two and a half years after the last upload, the patch has bit-rotted.
+- **A reviewer took himself off it.** `2024-11-15  David Yeung -> CC (by David
+  Yeung)`, eleven months after Frank Tang's question. One of the two named
+  reviewers stepping down to CC is a human action and the opposite of movement.
 
 So this is **not** a refusal, and not quite the policy wall this README used to
 describe. The filter rule is real —
 [`filters/common.json`](https://chromium.googlesource.com/chromium/deps/icu/+/refs/heads/main/filters/common.json)
 keeps *"only the minimum locale data for non-UI languages"*, and the qualifying
 condition is whether Chrome's own UI is translated, not whether the language is
-used on the web. But a patch exists that would move Icelandic out of that list,
-and what is blocking it is one unanswered question about roughly 60 KB.
+used on the web. But a patch exists that would move Icelandic out of that list.
+
+What is blocking it is no longer *"one unanswered question about roughly 60 KB"*,
+which is what this section said until 2026-09-09 and which was true when it was
+written. It is now three things: the unanswered product question, a merge
+conflict, and a reviewer who left. The conclusion below gets stronger, not
+weaker — but the reason has to be the true one, and "the fix is written and
+waiting on review" reads as nearer than it is.
 
 Which is why the Vivaldi measurement above is worth having: a shipping Chromium
 already carries Icelandic, and the whole difference is **81,200 bytes** — which
@@ -903,10 +922,12 @@ another bug adds nothing to any of them; the useful contribution is a
 measurement, which is why the Vivaldi figure went on the two live threads rather
 than into a new issue.
 
-Two things worth watching. The near one is
+Two things worth watching. The nearer one is
 [crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575)
-— if it lands, Chrome's half of this problem ends, collation included. The far
-one is **ICU4X**, which both threads independently point at: the workerd
+— if it lands, Chrome's half of this problem ends, collation included. "Nearer"
+is relative: it does not currently apply to `main`, so landing it now means
+somebody rebasing it first, and the product question it was stopped on has been
+unanswered for two years. The far one is **ICU4X**, which both threads independently point at: the workerd
 reporter ("I'm starting to understand why the Unicode Consortium is pushing
 ICU4X") and Mozilla's own resolution. Data loaded on demand per locale is the
 shape that makes this question go away, rather than the shape that makes someone

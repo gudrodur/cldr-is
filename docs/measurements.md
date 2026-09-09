@@ -401,3 +401,33 @@ Not a benchmark, but the same discipline: read rather than assumed.
 The maintainer on workerd#64 was receptive, not opposed. Four years of silence
 after a receptive reply is a stronger reason to plan around this than a refusal
 would be.
+
+### crrev.com/c/4514575, read off the API rather than the page
+
+The Chromium CL that would add `is` to `common.json`. Every field below is from
+the Gerrit REST API, which reports things the web UI renders as a badge or not
+at all — re-run it rather than trusting this table:
+
+```bash
+curl -s "https://chromium-review.googlesource.com/changes/4514575/detail?o=MESSAGES&o=REVIEWER_UPDATES" | tail -c +6 | python3 -m json.tool
+curl -s "https://chromium-review.googlesource.com/changes/4514575/revisions/current/mergeable" | tail -c +6
+```
+
+(`tail -c +6` strips Gerrit's `)]}'` XSSI prefix, without which the body is not
+valid JSON.)
+
+| | measured 2026-09-09 |
+|---|---|
+| `status` | `NEW` |
+| `mergeable` | **`false`** — the *Merge Conflict* badge; the patch no longer applies |
+| revisions | 5, last uploaded 2023-08-26 |
+| last human comment | 2023-10-05, Frank Tang, the 60K product question |
+| `unresolved_comment_count` | **0** — and the question was never answered. In Gerrit anyone may resolve a thread; the counter is not a state of the discussion |
+| reviewer change after that | `2024-11-15  David Yeung -> CC (by David Yeung)` — a named reviewer removing himself |
+| `updated` | 2025-10-23, later than any visible entry (the change log hides 8) |
+| `size_delta` | 61,776 B on each of `icudtl.dat` and `icudtb.dat` — the *other* direction's check on the 81,168 B Vivaldi figure above |
+
+The trap this table exists for: the CL page shows "3 resolved" comments and
+status `NEW`, which together read as a change in good order awaiting review. It
+is a change that does not apply, whose only substantive question was closed
+without an answer, and which one of its two reviewers has left.
