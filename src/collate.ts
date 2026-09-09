@@ -135,11 +135,48 @@ function expansionOf(letters: string): string {
   return Array.from(letters).map(standInFor).join("");
 }
 
+// The Latin ligatures U+FB00-FB06 expand the same way, but at a different
+// level, and the level is measured rather than assumed. Under
+// `sensitivity: "accent"` ICU ties six of the seven with the letters they
+// expand to — so their difference is BELOW secondary, i.e. tertiary — while
+// "ﬅ" separates at accent and belongs with the "ß" group above. Getting that
+// backwards is visible in one pair: ICU sorts "aﬁ" BEFORE "Afi" (the ﬁ/fi
+// difference is tertiary, so the case difference at position 1 decides), and a
+// secondary mark would reverse it, exactly the way a tertiary mark reverses
+// "aß" vs "Ass".
+//
+// Why these seven and nothing else. There are 136 code points whose NFKD is
+// two or more ASCII letters — Roman numerals, ₨, ℡, the CJK squared units —
+// and 125 of them sort somewhere ICU does not put them. That whole class wants
+// a derived table of the same kind as TAILORED, and it is not this change.
+// These seven are here on a reachability argument the others do not have: PDF
+// text extraction emits ligature glyphs verbatim, so "Ólaﬁsdóttir" is what a
+// pasted name actually looks like, and a name is what this collator is for.
+const EXPANSION_TERTIARY = 1;
+const TERTIARY_STAND_IN = new Map<string, string>();
+function tertiaryStandInFor(letter: string): string {
+  const existing = TERTIARY_STAND_IN.get(letter);
+  if (existing !== undefined) return existing;
+  const ch = String.fromCodePoint(nextStandIn++);
+  TERTIARY_STAND_IN.set(letter, ch);
+  return ch;
+}
+function tertiaryExpansionOf(letters: string): string {
+  return Array.from(letters).map(tertiaryStandInFor).join("");
+}
+
 const EXPANSIONS: Array<[RegExp, string]> = [
   [/ß/g, expansionOf("ss")],
   [/\u1E9E/g, expansionOf("SS")],
   [/œ/g, expansionOf("oe")],
   [/Œ/g, expansionOf("OE")],
+  [/\uFB05/g, expansionOf("st")],
+  [/\uFB00/g, tertiaryExpansionOf("ff")],
+  [/\uFB01/g, tertiaryExpansionOf("fi")],
+  [/\uFB02/g, tertiaryExpansionOf("fl")],
+  [/\uFB03/g, tertiaryExpansionOf("ffi")],
+  [/\uFB04/g, tertiaryExpansionOf("ffl")],
+  [/\uFB06/g, tertiaryExpansionOf("st")],
 ];
 
 function expand(value: string): string {
@@ -171,6 +208,13 @@ function weighCodePoint(cp: number): Weight {
 for (const [letter, standIn] of STAND_IN) {
   const base = weigh(letter);
   CACHE.set(standIn.codePointAt(0)!, { ...base, s: base.s + EXPANSION_SECONDARY });
+}
+
+// Same, one level down: the ligature stand-ins weigh as the letter they replace
+// plus the tertiary mark that separates "ﬁ" from "fi".
+for (const [letter, standIn] of TERTIARY_STAND_IN) {
+  const base = weigh(letter);
+  CACHE.set(standIn.codePointAt(0)!, { ...base, t: base.t + EXPANSION_TERTIARY });
 }
 
 // Letters outside the alphabet (ü, ç, ñ …) sort next to the base letter they
@@ -267,7 +311,7 @@ function weigh(ch: string): Weight {
 // some paste sources, so this is a real input, not a theoretical one.
 const COMBINING = /\p{M}/u;
 const LETTER = /\p{L}/u;
-const EXPANDING = /[ßœŒ\u1E9E]/;
+const EXPANDING = /[ßœŒ\u1E9E\uFB00-\uFB06]/;
 
 function toNfc(value: string): string {
   return COMBINING.test(value) ? value.normalize("NFC") : value;

@@ -361,3 +361,81 @@ describe("compareIs", () => {
     }
   });
 });
+
+describe("the Latin ligatures U+FB00-FB06", () => {
+  // PDF text extraction emits ligature glyphs verbatim, so "Ólaﬁsdóttir" with a
+  // single U+FB01 is what a pasted name looks like. Before this block those
+  // seven code points fell through `weigh` to the UNLISTED LETTER band, which
+  // sits AFTER the whole alphabet — so a pasted name sorted below every
+  // Icelandic one, the mirror image of the "Łukasz" defect that motivated the
+  // TAILORED table.
+  //
+  // The level is the part worth pinning. Under sensitivity "accent" ICU ties
+  // six of the seven with the letters they expand to, so their difference is
+  // TERTIARY; "ﬅ" separates at accent and is SECONDARY, like "ß". A secondary
+  // mark on the other six reverses one pair in particular — "aﬁ" vs "Afi" —
+  // and the suite passed with them at the wrong level until this block existed.
+  const LIGATURES: Array<[string, string, "secondary" | "tertiary"]> = [
+    ["ﬀ", "ff", "tertiary"],
+    ["ﬁ", "fi", "tertiary"],
+    ["ﬂ", "fl", "tertiary"],
+    ["ﬃ", "ffi", "tertiary"],
+    ["ﬄ", "ffl", "tertiary"],
+    ["ﬅ", "st", "secondary"],
+    ["ﬆ", "st", "tertiary"],
+  ];
+
+  it("has the levels ICU has, read off ICU rather than assumed", () => {
+    const base = new Intl.Collator("is", { sensitivity: "base" });
+    const accent = new Intl.Collator("is", { sensitivity: "accent" });
+    for (const [ligature, letters, level] of LIGATURES) {
+      expect(base.compare(ligature, letters), `${letters} at base`).toBe(0);
+      expect(
+        accent.compare(ligature, letters) === 0 ? "tertiary" : "secondary",
+        `${letters} level`,
+      ).toBe(level);
+    }
+  });
+
+  it("sorts as the letters it expands to", () => {
+    for (const [ligature, letters] of LIGATURES) {
+      const others = [
+        ...Array.from(IS_ALPHABET),
+        "Aðalheiður",
+        "Ólafur",
+        letters,
+        letters.toUpperCase(),
+      ];
+      for (const other of others) {
+        const pairs: Array<[string, string]> = [
+          [ligature, other],
+          [`Óla${ligature}sdóttir`, `Óla${other}sdóttir`],
+          [`a${ligature}`, `A${letters}`], // the pair a secondary mark reverses
+        ];
+        for (const [a, b] of pairs) {
+          expect(sign(compareIs(a, b)), `${JSON.stringify(a)} vs ${JSON.stringify(b)}`).toBe(
+            sign(icu(a, b)),
+          );
+        }
+      }
+    }
+  });
+
+  it("still separates the ligature from the pair, so nothing compares equal", () => {
+    for (const [ligature, letters] of LIGATURES) {
+      expect(compareIs(ligature, letters), letters).not.toBe(0);
+      expect(sign(compareIs(ligature, letters)), letters).toBe(sign(icu(ligature, letters)));
+    }
+  });
+
+  it("leaves the compatibility SYMBOLS alone, deliberately", () => {
+    // 136 code points have an NFKD of two or more ASCII letters and 125 of them
+    // sort somewhere ICU does not put them — ™ ₨ ℡ №, the Roman numerals, the
+    // CJK squared units. That class wants a derived table of the same kind as
+    // TAILORED and is not this change; the seven above are here on a
+    // reachability argument (a pasted person's name) that ™ does not have.
+    // Recorded as a measurement rather than left to be rediscovered.
+    expect(sign(compareIs("™", "s"))).toBe(-1);
+    expect(sign(icu("™", "s"))).toBe(1);
+  });
+});
