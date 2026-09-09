@@ -5,6 +5,13 @@
   // to come back. The Safari result arrived as a screenshot in a chat, and its
   // browser version is gone forever because nothing recorded it. This is that,
   // without asking anyone for a screenshot.
+  // KEEPS THE OLD NAME ON PURPOSE. The repo and the npm package were renamed
+  // intl-is -> cldr-is on 2026-09-09; this Worker was not. A Worker name is a
+  // hostname (intl-is-reports.gudrodur.workers.dev) and it does not redirect,
+  // and docs/index.html POSTs every collected report to it. Renaming would drop
+  // reports silently — no error on either side — and the D1 binding below is
+  // keyed to the database name too. The cost of the inconsistency is one
+  // sentence; the cost of the rename is the data.
   "name": "intl-is-reports",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-08",

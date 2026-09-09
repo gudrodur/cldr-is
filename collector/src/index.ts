@@ -376,7 +376,7 @@ export default {
 
       return json({
         note:
-          "Reports from https://gudrodur.github.io/intl-is/. The database stores a runtime label " +
+          "Reports from https://gudrodur.github.io/cldr-is/. The database stores a runtime label " +
           "(browser family, major version, coarse platform), the engine version where the user agent " +
           "states one, the embedding app when the browser is an in-app one, the browser UI language as a " +
           "bare language code, the resolved locale, the check counts, " +

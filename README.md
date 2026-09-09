@@ -1,4 +1,4 @@
-# intl-is
+# cldr-is
 
 Icelandic locale data, collation, and a working recipe for the JavaScript
 `Intl` API on runtimes that ship without it.
@@ -37,7 +37,7 @@ Icelandic locale data, collation, and a working recipe for the JavaScript
 > desktop-shaped problem, and the demo page is the fastest way to see whether it
 > is yours at all.
 
-### → [Does your browser speak Icelandic?](https://gudrodur.github.io/intl-is/)
+### → [Does your browser speak Icelandic?](https://gudrodur.github.io/cldr-is/)
 
 One page, twelve checks, run in whatever browser opens it and compared against
 what CLDR actually says. **Open it in Chrome and in Firefox** — that is the whole
@@ -282,7 +282,7 @@ serves — which matters the moment the site is not Icelandic-only.
 
 ```ts
 // server entry, FIRST import
-import "intl-is/server";
+import "cldr-is/server";
 ```
 
 Four things that are not obvious and each cost a debugging session:
@@ -695,7 +695,7 @@ easy to miss if you treat "does this browser speak Icelandic" as one question.
 four different points in that space.
 
 ```ts
-import { compareIs } from "intl-is/collate";
+import { compareIs } from "cldr-is/collate";
 
 names.sort(compareIs);
 ```
@@ -798,7 +798,7 @@ page renders that file rather than a copy.
 
 ## The page, and how it is built
 
-[The page at the top](https://gudrodur.github.io/intl-is/) is the only place the
+[The page at the top](https://gudrodur.github.io/cldr-is/) is the only place the
 failure is *visible* rather than described. Source:
 [`docs/index.html`](docs/index.html).
 

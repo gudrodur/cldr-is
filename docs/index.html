@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Does your browser speak Icelandic? — intl-is</title>
+<title>Does your browser speak Icelandic? — cldr-is</title>
 <meta name="description" content="A live test: Chromium-based browsers render Icelandic dates, numbers and sort order in English. This page checks yours and shows what it should say.">
 <style>
   :root {
@@ -177,7 +177,7 @@
   the gap too. There the polyfill earns its size — loaded once per isolate, not
   per visitor, and it fixes every locale at once.
 </p>
-<pre><code>import "intl-is/server";   // first import in the worker entry</code></pre>
+<pre><code>import "cldr-is/server";   // first import in the worker entry</code></pre>
 <p class="muted">
   It must be formatjs’s <code>polyfill-force</code>, not <code>polyfill</code>: the
   runtime <em>has</em> an <code>Intl.DateTimeFormat</code>, it just answers in
@@ -193,8 +193,8 @@
   <strong>2,774 B</strong> for manual formatters that also cover sorting. Copy
   them or import them — both are fine:
 </p>
-<pre><code>import { formatIsDate, formatIsNumber } from "intl-is/format";
-import { compareIs } from "intl-is/collate";</code></pre>
+<pre><code>import { formatIsDate, formatIsNumber } from "cldr-is/format";
+import { compareIs } from "cldr-is/collate";</code></pre>
 
 <h3>Then pin whatever you write to Node</h3>
 <p>
@@ -233,7 +233,7 @@ import { compareIs } from "intl-is/collate";</code></pre>
     green verdict here does not have to mean Firefox.
   </p>
   <p>
-    <a href="https://github.com/gudrodur/intl-is">gudrodur/intl-is</a> · MIT ·
+    <a href="https://github.com/gudrodur/cldr-is">gudrodur/cldr-is</a> · MIT ·
     a workaround, and the measurements behind it.
     Firefox, Safari and Node ship full ICU and are unaffected — all three
     measured, Safari on 2026-09-08 by a reader who opened this page on macOS.
