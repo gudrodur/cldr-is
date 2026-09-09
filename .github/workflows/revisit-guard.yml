@@ -1,0 +1,86 @@
+# Guards the `blocked: time` convention at the moment it is used.
+#
+# `blocked: time` says nobody is being chased — only elapsed time or accumulated
+# data unblocks the issue. The thing that brings it back is a `Revisit:
+# YYYY-MM-DD` line in the body, read weekly by ~/.claude/scripts/revisit-sweep.mjs.
+# A label applied WITHOUT that line is a promise nothing can keep: the issue is
+# marked as sleeping and nothing will ever wake it.
+#
+# Deliberately a LOOSE check. It asks only whether a dated Revisit line is there
+# at all, which is the failure that actually happens; the sweep remains the
+# precise arbiter of whether the date parses and is a real day. Two layers that
+# do not pretend to be each other, and — the point — no shared regex to drift
+# across the repos this file is installed in.
+#
+# That last clause used to name a count. It cannot: this file is COPIED into
+# every repo that opts in, so a number written here is wrong in every older copy
+# the moment one more repo joins. The live count is whatever
+# scripts/lib/convention-repos.mjs holds, and convention-audit.mjs reports which
+# of them are missing the file.
+#
+# It comments ONCE, keyed on a marker, so editing the issue repeatedly does not
+# spam it. Fixing the body produces no confirmation comment: silence is the
+# success signal, and the weekly sweep will list the issue as `waiting`.
+#
+# runs-on is pinned to ubuntu-latest rather than the RUNNER_LABELS fallback its
+# sibling guards use. Those resolve to a self-hosted box, and a guard that only
+# fires when a particular laptop is awake is not a guard. This job is a few
+# seconds of github-script with no checkout, so the hosted-minutes cost is
+# negligible.
+name: revisit-guard
+
+on:
+  issues:
+    types: [labeled, edited]
+
+permissions:
+  issues: write
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const LABEL = "blocked: time";
+            const MARKER = "<!-- revisit-guard -->";
+            const { owner, repo } = context.repo;
+            const issue = context.payload.issue;
+            const num = issue.number;
+
+            const labelled = (issue.labels || []).some((l) => (l.name || l) === LABEL);
+            if (!labelled) return;
+
+            // Loose on purpose — see the header. `Revisit:` followed by something
+            // date-shaped, anywhere in the body, tolerating bold/backticks/quoting.
+            const hasDate = /^[\s>*_`-]*revisit[*_`]*\s*:\s*[*_`]*\s*\d{4}-\d{2}-\d{2}/im
+              .test(issue.body || "");
+            if (hasDate) return;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: num, per_page: 100,
+            });
+            if (comments.some((c) => (c.body || "").includes(MARKER))) return;
+
+            const body = [
+              MARKER,
+              "⏳ **`blocked: time` with no `Revisit:` date — nothing will wake this issue.**",
+              "",
+              "The label says there is nobody to chase and only elapsed time or accumulated",
+              "data unblocks this. What brings it back is a line in the body:",
+              "",
+              "```markdown",
+              "## Revisit",
+              "",
+              "Revisit: 2027-02-26 — what you are waiting for, in one clause",
+              "```",
+              "",
+              "ISO date, and say what you are waiting for: the sweep echoes that clause back",
+              "when the date arrives, and it is exactly what a reader has forgotten by then.",
+              "",
+              "Without it the weekly sweep reports this issue as `undated` and never comments,",
+              "because there is no date to reach. Add the line, or drop the label if the work",
+              "is actually blocked on a person — that is plain `blocked`.",
+            ].join("\n");
+            await github.rest.issues.createComment({ owner, repo, issue_number: num, body });
