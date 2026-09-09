@@ -1,10 +1,10 @@
 {
-  "name": "intl-is",
+  "name": "cldr-is",
   "version": "0.1.0",
   "description": "Icelandic dates, numbers and collation for JavaScript on runtimes that ship without the locale data (Chromium-based browsers, Cloudflare Workers). A recipe as much as a package.",
   "license": "MIT",
   "author": "Gu\u00f0r\u00f6\u00f0ur Atli J\u00f3nsson",
-  "repository": "github:gudrodur/intl-is",
+  "repository": "github:gudrodur/cldr-is",
   "type": "module",
   "sideEffects": [
     "./dist/server.js",

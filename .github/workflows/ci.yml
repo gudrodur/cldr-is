@@ -90,12 +90,12 @@ jobs:
         run: |
           mkdir -p /tmp/consumer && cd /tmp/consumer
           npm init -y > /dev/null
-          npm install "$GITHUB_WORKSPACE"/intl-is-*.tgz
+          npm install "$GITHUB_WORKSPACE"/cldr-is-*.tgz
           cat > check.mjs <<'JS'
-          import { icelandicIntlStatus } from "intl-is/server";
-          import { compareIs, IS_ALPHABET } from "intl-is/collate";
-          import { formatIsDate, formatIsNumber, IS_NO_DATE } from "intl-is/format";
-          import { needsIcelandicIntl } from "intl-is/client";
+          import { icelandicIntlStatus } from "cldr-is/server";
+          import { compareIs, IS_ALPHABET } from "cldr-is/collate";
+          import { formatIsDate, formatIsNumber, IS_NO_DATE } from "cldr-is/format";
+          import { needsIcelandicIntl } from "cldr-is/client";
 
           const fail = (m) => { console.error("FAIL:", m); process.exitCode = 1; };
           if (!icelandicIntlStatus().ok) fail("server polyfill did not install Icelandic");
