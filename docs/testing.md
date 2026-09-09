@@ -292,3 +292,38 @@ costs a paragraph that must be relitigated every time new data arrives, and it
 When you do add one, say in the document that existing rows read empty and
 cannot be backfilled. The temptation is to let a new column quietly imply the
 whole table answers the new question.
+
+## 17. One sentence must not cover two corpora
+
+`formatIsNumber` was pinned over 20,000 pseudo-random values spanning the whole
+double range. The eight date shapes beside it were pinned at **one instant
+each** — `2026-09-02T12:07:07Z` and a few hand-built `Date`s. Two exported
+functions had no test at all, and the three exported name tables were never
+compared to CLDR directly.
+
+One sentence covered all of it: *pinned to Node's full ICU*. It was true of the
+number formatter and it read as a claim about the module.
+
+That is the same defect as rule 1, one level up. Rule 1 says a green suite is
+evidence about its corpus; this says that when a file holds several corpora of
+very different strength, a single summary sentence quietly promotes the weakest
+to the strength of the strongest. Nobody lied and nobody had to: the sentence
+was written when the number sweep was the new thing, and the date shapes simply
+never came up again.
+
+Two things fix it, and the second matters more:
+
+1. **Write the corpus into the test, not the prose.** `test/parity.test.ts`
+   carries its counts and its two known limits in the file that runs them, and a
+   `covers every date shape the module exports` case fails when an export is
+   added with no row — so the coverage claim is checked rather than remembered.
+2. **When you strengthen one function's testing, look at its neighbours in the
+   same breath.** The asymmetry is created by improvement, not by neglect. Every
+   time a corpus is widened for one export, the exports beside it get further
+   behind the sentence that describes all of them.
+
+Measured when this rule was written (2026-09-09): widening the date corpus to
+~3.8 million comparisons across six time zones found **zero** divergences inside
+the claimed range and **two** limits outside it that nothing had recorded. A
+sweep that finds nothing is not a wasted sweep; it converts "we believe" into
+"we measured", and it is the only way to tell those two apart.
