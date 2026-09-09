@@ -327,3 +327,59 @@ Measured when this rule was written (2026-09-09): widening the date corpus to
 the claimed range and **two** limits outside it that nothing had recorded. A
 sweep that finds nothing is not a wasted sweep; it converts "we believe" into
 "we measured", and it is the only way to tell those two apart.
+
+## 18. A zone with no DST is a test bench with a hole in it
+
+Iceland dropped daylight saving in 1968. Nearly every European country kept it.
+So the zone this code is *for* is the one zone where an offset never moves, and a
+suite run at home exercises the whole DST axis on nothing.
+
+Measured over the parity sweep's own 5,000 instants: **30.1%** carry a summer
+offset in `Europe/Copenhagen`, **34.4%** in `America/Los_Angeles`, **0.0%** in
+`Atlantic/Reykjavik`. Not "few". None.
+
+The demonstration rather than the argument: change `formatIsTime` to read local
+fields instead of UTC fields. Four tests fail in Copenhagen. **One** fails in
+Reykjavík — and only because of a historical pin added the same day. Without it,
+the mutation is invisible where the developer sits.
+
+Two things follow, and the second is the general one.
+
+**Run the suite where the property varies, not where the users are.** The
+temptation is the opposite: test in the zone you ship to. That is precisely the
+zone chosen for having no variation in the thing under test.
+
+**And check what your reference is actually asserting.** The instant shapes read
+`getUTC*` and render the result as Icelandic time, on the ground that Iceland is
+UTC+0 year-round. The reference passed `timeZone: "UTC"`. So the assertion was
+`getUTCHours()` equals `Intl(timeZone: "UTC")` — an identity between two
+spellings of the same thing, which cannot fail for any reason connected to
+Iceland. That is rule 3 again, and it was committed inside the file written to
+fix rule 1. A test can be true by construction along an axis nobody named, in a
+file whose whole subject is corpus width.
+
+## 19. tzdata answers a question you did not ask
+
+Pointing the reference at `timeZone: "Atlantic/Reykjavik"` produces divergence on
+**39.6%** of a 1600–2400 sweep: every instant before 1912, by 16 minutes and 8
+seconds. The obvious reading is "the module is wrong about Iceland's history".
+
+It is not. **16:08 is not Reykjavík's offset from anything.** tzdata merges zones
+that have agreed since 1970 and keeps a single history for the survivor, so
+`Atlantic/Reykjavik` is a backward *link* to `Africa/Abidjan` — and the pre-1912
+"Icelandic local time" the platform reports is Abidjan's local mean time
+(4.03° W). Reykjavík is at 21.9° W; its LMT was about −01:28. Iceland's real
+history, UTC−1 from 1908 with DST in 1917–1919, 1921 and 1939–1968, **is in no
+JavaScript runtime at all**.
+
+Confirmed rather than reasoned: `Africa/Abidjan` and `Atlantic/Reykjavik` render
+the same 1900 instant identically, and the pin fails if tzdata ever unmerges
+them.
+
+The rule: **before treating an oracle's disagreement as your defect, establish
+that the oracle is answering your question.** A time zone id is a name for a
+history, and a platform is free to substitute a different history behind the same
+name when the two agree over the range it cares about. The parity floor here is
+1970 because that is where the data starts being about Iceland — not where the
+module starts being right, and there is no way to find out which from inside
+JavaScript.

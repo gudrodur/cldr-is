@@ -24,9 +24,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      # Several zones on purpose. The date shapes read LOCAL wall-clock, so a
-      # suite that only ever runs in UTC can pass while the formatters are wrong
-      # everywhere else — that is exactly how a real bug survived a review round.
+      # Several zones on purpose, and the first reason is the one that is easy
+      # to miss: ICELAND HAS NO DST. It dropped daylight saving in 1968 while
+      # nearly every European country kept it, so the zone this code is FOR is
+      # the one zone where an offset never moves. Measured over the parity
+      # sweep's own instants: 30.1% carry a summer offset in Europe/Copenhagen,
+      # 34.4% in America/Los_Angeles, and 0.0% in Atlantic/Reykjavik. A suite
+      # run only at home tests that axis on nothing. Making formatIsTime read
+      # local fields instead of UTC fails four tests in Copenhagen and one in
+      # Reykjavik.
+      #
+      # The date shapes read LOCAL wall-clock, so a suite that only ever runs in
+      # UTC can pass while the formatters are wrong everywhere else — that is
+      # how a real bug survived a review round.
       #
       # Copenhagen alone is not enough either. It is UTC+1/+2, so a UTC/local
       # mixup there moves the HOUR and only sometimes the date. Kiritimati
