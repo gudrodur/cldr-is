@@ -121,6 +121,15 @@ for (const entry of EXTRA_LETTERS.split(" ")) {
 //
 // So an expansion rewrites to private-use stand-ins that weigh like the letter
 // they replace but carry a secondary mark, rather than to the bare letters.
+//
+// The stand-ins are real code points, so a caller who passes one gets the
+// letter's weight instead of the fallback band: measured, 12 code points from
+// U+E000 are allocated (6 before the ligatures below joined), and inside that
+// window `compareIs("\uE000", "ß")` is -1 where ICU is +1. Left alone
+// deliberately — the window is private-use, no keyboard or data source
+// produces it, and non-equality still holds. Recorded so it is not
+// rediscovered as a bug; if a real input ever lands there, allocate from a
+// plane nothing round-trips instead of widening this comment.
 const EXPANSION_SECONDARY = 1;
 const STAND_IN = new Map<string, string>();
 let nextStandIn = 0xe000;
