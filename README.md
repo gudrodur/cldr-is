@@ -338,6 +338,36 @@ Write that once per shape and the hand-written table stops being a guess. It is
 what catches the abbreviated months (`sep.` with a period, `maí` without), and
 it is why copying this repo's *tests* matters more than copying its code.
 
+**Once per shape is where this repo stopped, and it was not enough.** For a long
+time `formatIsNumber` was pinned over 20,000 pseudo-random values while the eight
+date shapes were pinned at a single instant each, two exported functions
+(`formatIsDateTime`, `formatIsTime`) had no test at all, and the three exported
+name tables were never compared to CLDR directly — all under one sentence saying
+the module was pinned to CLDR. [`test/parity.test.ts`](test/parity.test.ts) now
+walks every shape instead:
+
+> 18 shapes (each formatter on both the string and the `Date` input), 100,000
+> instants spread over the years 1600–2400 in `Atlantic/Reykjavik` and 10,000 in
+> each of `Europe/Copenhagen`, `America/Los_Angeles`, `Pacific/Kiritimati`
+> (UTC+14), `Pacific/Niue` (UTC−11) and `Asia/Kathmandu` (UTC+5:45), plus the
+> same sweep against the copy of this module running in production.
+> **~3.8 million comparisons, zero divergences** (2026-09-09).
+
+Two limits came out of it, and both are pinned rather than described:
+
+- **Parity stops at year 1.** ICU renders the year of era and, with no era
+  requested, drops the marker, so the astronomical year 0 prints as `1` and −44
+  as `45`. This module prints the astronomical year. Both are defensible; they
+  disagree.
+- **A malformed date-only string renders the literal text `undefined`.**
+  `dateFields()` splits the first ten characters on `-` without checking what it
+  got, so `formatIsDate("2026-06")` returns `"undefined. júní 2026"` and
+  `formatIsDate("not-a-date")` returns `"NaN. undefined NaN"`, where ICU refuses
+  the same input with a `RangeError`. No caller reaches it — every one passes a
+  `timestamptz` or a `Date` — which is exactly why it survived. It is the same
+  class as a comparator returning 0 for two different strings: a wrong answer
+  wearing the shape of an answer.
+
 Two ways to get the test itself wrong:
 
 - **Do not pin with `timeZone: "UTC"` on the Intl side unless the call site

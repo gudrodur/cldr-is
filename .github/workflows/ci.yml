@@ -24,12 +24,24 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      # Two zones on purpose. The date shapes read LOCAL wall-clock, so a suite
-      # that only ever runs in UTC can pass while the formatters are wrong
+      # Several zones on purpose. The date shapes read LOCAL wall-clock, so a
+      # suite that only ever runs in UTC can pass while the formatters are wrong
       # everywhere else — that is exactly how a real bug survived a review round.
+      #
+      # Copenhagen alone is not enough either. It is UTC+1/+2, so a UTC/local
+      # mixup there moves the HOUR and only sometimes the date. Kiritimati
+      # (UTC+14) and Niue (UTC-11) sit on the far side of the date line from UTC,
+      # so the same mixup moves the DAY on most instants, and Kathmandu's
+      # UTC+5:45 is the one that catches an offset assumed to be whole hours.
       - run: npm test
       - name: npm test (Europe/Copenhagen)
         run: TZ=Europe/Copenhagen npm test
+      - name: npm test (Pacific/Kiritimati, UTC+14)
+        run: TZ=Pacific/Kiritimati npm test
+      - name: npm test (Pacific/Niue, UTC-11)
+        run: TZ=Pacific/Niue npm test
+      - name: npm test (Asia/Kathmandu, UTC+5:45)
+        run: TZ=Asia/Kathmandu npm test
       # Regenerating must be a no-op in the ANSWERS. If it is not, someone
       # edited a case without running `npm run measure`, and the page and the
       # reference have parted company.
