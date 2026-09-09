@@ -897,31 +897,45 @@ configuration is not hypothetical: **it is what Microsoft Edge ships today**, an
 Edge's measured behaviour is what Chrome's would become — collation correct,
 dates English, currency wrong despite `curr/is.res` being present in full.
 
-The byte accounting closes exactly, which is the check that this reading is
-right and not a story about the diff:
+The strongest evidence is not Edge, though. **The CL regenerates
+`common/icudtl.dat`, so the answer is inside the patch** — no inference about
+what a build would do. Parsing that file's package table of contents with
+[`scripts/icu-entry-sizes.mjs`](scripts/icu-entry-sizes.mjs):
 
 ```
-CL 4514575, curr + coll + unit + zone            59,728 B
-CL's Gerrit size_delta per .dat                  61,776 B
-  package/TOC overhead                            2,048 B   = 2 KiB exactly
-
-Edge 152, total Icelandic (measured)             65,968 B
-  = the CL's four trees                          59,728
-  + region_tree, which the CL leaves off          6,048
-  + Chrome's own stubs (root 80, lang 112)          192
+icudt73l/coll/is.res    23,872
+icudt73l/curr/is.res    14,944
+icudt73l/unit/is.res     7,120
+icudt73l/zone/is.res    15,760
+icudt73l/is.res             80   <- the main bundle, still a stub
+icudt73l/lang/is.res       112   <- still a stub
+                        ------
+four trees added        61,696
+Gerrit size_delta       61,776
+difference                  80
 ```
 
-That also retires the open residue this section used to carry. It said *"2,048
-bytes are unaccounted for"*, reached by subtracting Vivaldi's extra trees from
-the `size_delta`. The 2,048 is not locale data at all — it is what the ICU
-package costs to carry four more entries, and routing the subtraction through
-Edge rather than Vivaldi makes every other byte land.
+Eighty bytes, fully explained: four entry names, NUL-terminated (48 B), plus four
+`{nameOffset, dataOffset}` pairs (32 B). The package index growing, and nothing
+else.
 
-**The complete fix is 69,008 bytes of data**: the CL's 59,728 plus 9,280 for the
-root bundle Vivaldi carries and Chrome trims. Under 70 KiB for dates, months,
-weekdays, number symbols, collation, currency, units and zones together — which
-is a more useful number for the product question on the CL than "60K", because
-60K buys three quarters of the answer.
+**That retires the "2,048 bytes are unaccounted for" residue, and it retires the
+explanation this section gave for it on 2026-09-09, which was wrong.** The claim
+was that 2,048 is what the ICU package costs to carry four more entries. It is
+not; the package costs 80. The 2,048 was **ICU version drift**, and the mistake
+was comparing across versions without noticing: the CL's binaries are `icudt73l`
+and every browser measured here is `icudt78l`. Between those releases `unit`
+fell 7,120 → 5,840, `zone` 15,760 → 15,280 and `curr` 14,944 → 14,736, which is
+1,968 of the 2,048 by itself. An omp reviewer named version drift as a rival
+hypothesis; downloading the CL's own `.dat` rather than reasoning about it
+settled it.
+
+**The complete fix is a little under 70 KB of data**: the CL's four trees plus
+roughly 9 KB to stop trimming the main bundle (Vivaldi's full `is.res` is 9,360 B
+against Chrome's 80 B stub — an ICU 78 figure against the CL's ICU 73 binaries,
+hence the rounding). That is a more useful number for the product question than
+"60K", because the CL's 60K is **86.6%** of the bytes and none of the part a user
+sees. This section said "three quarters" until the arithmetic was checked.
 
 **workerd#64 is not a refusal. It is silence, which is worse.**
 [cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64) was
