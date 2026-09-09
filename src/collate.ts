@@ -156,7 +156,10 @@ function expansionOf(letters: string): string {
 //
 // Why these seven and nothing else. There are 136 code points whose NFKD is
 // two or more ASCII letters — Roman numerals, ₨, ℡, the CJK squared units —
-// and 125 of them sort somewhere ICU does not put them. That whole class wants
+// and 118 of them sort somewhere ICU does not put them. (125 before the seven
+// below were fixed; the difference IS the seven. The first version of this
+// comment shipped 125 in the same commit that made it wrong, because the
+// number was measured before the change and copied in after.) That class wants
 // a derived table of the same kind as TAILORED, and it is not this change.
 // These seven are here on a reachability argument the others do not have: PDF
 // text extraction emits ligature glyphs verbatim, so "Ólaﬁsdóttir" is what a
