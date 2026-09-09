@@ -3,11 +3,26 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "allowImportingTsExtensions": true,
     "strict": true,
-    "noEmit": true,
     "skipLibCheck": true,
-    "lib": ["ES2022", "DOM"]
+    "lib": ["ES2022", "DOM"],
+
+    // The published surface. `dist/` is what consumers import; `src/` stays in
+    // the tarball because copying a file out of it is a supported way to use
+    // this package and the comments are half the point.
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "rootDir": "src",
+
+    // NOT allowImportingTsExtensions. It requires noEmit, which is what kept
+    // this repo unpublishable: the exports map pointed at raw .ts and no
+    // consumer without a TypeScript-aware bundler could load it at all.
+    // Specifiers are extensionless; "Bundler" resolution handles src, and the
+    // emitted .js keeps them, which Node resolves through the exports map.
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true
   },
   "include": ["src"]
 }

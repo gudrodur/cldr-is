@@ -38,6 +38,6 @@ export function needsIcelandicIntl(): boolean {
 /** Loads the data only when needed. Resolves true if the chunk was installed. */
 export async function installIcelandicIntl(): Promise<boolean> {
   if (!needsIcelandicIntl()) return false;
-  await import("./data/is.ts");
+  await import("./data/is.js");
   return true;
 }

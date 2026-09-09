@@ -2,3 +2,7 @@ node_modules/
 dist/
 .wrangler/
 *.log
+
+# npm pack output — the CI `pack` job builds its own; a stray tarball in the
+# tree is a stale copy of a package that changes every commit.
+*.tgz

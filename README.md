@@ -51,9 +51,24 @@ missing exactly one piece of it, and two reports of the same version disagree
 about whether it is there at all. (Firefox on Android has all of it.) Readers of
 this page found that in an afternoon.
 
-**Status: not published, not yet built as a package.** This repository holds the
-code and the measurements while the approach earns production mileage in one
-application. It will go to npm when that experience exists.
+**Status: builds and packs; not published yet.** `npm pack` produces a tarball
+whose four entry points import and behave from a project that has never seen
+this repo, and CI checks exactly that on every push — because "typechecks" and
+"can be imported" are different states, and this package spent months in the gap
+between them: `exports` pointed at raw `./src/*.ts` and `allowImportingTsExtensions`
+forced `noEmit`, so nothing without a TypeScript-aware bundler could load it and
+no test said so.
+
+Two things worth knowing before installing:
+
+- **`./collate` and `./format` are dependency-free in the bundle.** The emitted
+  `dist/collate.js` and `dist/format.js` contain zero imports, asserted in CI on
+  the emitted files rather than on the intent. A bundler that takes only those
+  ships none of `@formatjs`.
+- **They are not dependency-free at install.** `./server` and `./client` need the
+  four `@formatjs` packages, so `npm install` fetches them whichever entry point
+  you use. Copying `src/format.ts` or `src/collate.ts` into your own tree remains
+  a supported way to use this repo, and for those two it costs you nothing.
 
 **It is a recipe as much as a package, and copying it is a supported way to use
 it.** For dates and numbers, hand-writing your own is a reasonable choice — the
