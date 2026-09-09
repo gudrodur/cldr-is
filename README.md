@@ -643,9 +643,9 @@ spends 65,968 bytes on Icelandic and one service does.**
 
 **Reproduce it:** the entry names are plain ASCII in the package TOC, so
 `strings icudtl.dat | grep 'is\.res'` gets you the presence table with no tools
-at all. Sizes need the offsets: read `headerSize` from the first two bytes, then
-a `uint32` count and that many `(nameOffset, dataOffset)` pairs, and take each
-entry's size as the difference between consecutive data offsets.
+at all. Sizes come from [`scripts/icu-entry-sizes.mjs`](scripts/icu-entry-sizes.mjs):
+`node scripts/icu-entry-sizes.mjs /opt/google/chrome/icudtl.dat is.res` prints
+`80  icudt78l/is.res` (plus `lang/is.res` at 112 bytes, 192 total).
 
 ### 81,200 bytes buys all of Icelandic. Edge spends 1.5 MB and does not get it.
 ### Do not report from an emulated device — it produces a false row
