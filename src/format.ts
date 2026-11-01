@@ -1,8 +1,7 @@
 // Icelandic date formatting without Intl, pinned to CLDR.
 //
-// COPY THIS FILE if you would rather hand-write than depend on a package —
-// that is a supported way to use this repo, and for dates and numbers it is a
-// reasonable choice. What is worth taking with you is not the code, which is
+// COPY THIS FILE: that is how this repo is meant to be used, and for dates and
+// numbers hand-writing is a reasonable choice. What is worth taking with you is not the code, which is
 // thirty lines you could write yourself, but three things that are easy to get
 // wrong and invisible when you do:
 //

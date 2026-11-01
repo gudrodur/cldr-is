@@ -7,10 +7,10 @@
 // There IS a polyfill — @formatjs/intl-collator, on npm since 2026-05-14. This
 // comment claimed there was none until 2026-09-08, which was asserted rather
 // than checked. Measured against native Intl.Collator("is") under Node full
-// ICU: it gets an ordinary Icelandic name list right, diverges on 10 of 5,473
-// alphabet-and-tailored pairs (all on ä/ø/å), diverges on 25,766 of 202,500
-// Latin letter pairs (12.7%), and costs 707,603 B gzip against this file's
-// 1,710 B. Its own README says full CLDR/UCA data compilation is still future
+// ICU (scripts/measure-methods.mjs, docs/methods.json): version 0.3.1 gets an
+// ordinary Icelandic name list right, diverges on 24 of 6,084 alphabet pairs,
+// diverges on 25,766 of 202,500 Latin letter pairs (12.7%), and costs
+// 808,896 B gzip against this file's 1,813 B. Its own README says full CLDR/UCA data compilation is still future
 // work, which is what those numbers are.
 //
 // Icelandic treats á é í ó ú ý ð þ æ ö as LETTERS IN THEIR OWN RIGHT, not as

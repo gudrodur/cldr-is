@@ -1,989 +1,121 @@
 # cldr-is
 
-Icelandic locale data, collation, and a working recipe for the JavaScript
-`Intl` API on runtimes that ship without it.
+A catalogue of ways to get Icelandic dates, numbers and sorting right in
+JavaScript on the runtimes that ship without the data, with a measurement beside
+each one. It is written for Icelandic developers.
 
-> ## Scope correction, 2026-09-08
->
-> **This README overstated the browser problem, and its own crowd data is what
-> narrowed it.** Read this before the tables below, which were written first.
->
-> The headline said "Chromium". Every report collected says **desktop Chrome and
-> Edge** — and nothing else
-> ([the live count is here](https://intl-is-reports.gudrodur.workers.dev/summary),
-> because a number typed into this file would be stale by tomorrow):
->
-> | | fails |
-> |---|---|
-> | Chrome on the desktop | 11 of 12 checks |
-> | Edge on the desktop | 10 of 12 |
-> | **every Chromium browser on Android** | **1 of 12 — the currency symbol** |
-> | Firefox, Safari, everything on iOS, Node | **nothing** |
->
-> So on mobile this is one symbol: `2.500 ISK` where CLDR says `2.500 kr.`. It
-> is real, it is worth fixing, and it is not what this document spent its first
-> thousand lines implying.
->
-> **The part that is not a browser problem at all is the one that matters most.**
-> Cloudflare Workers resolves `is` to `en-US` for dates, numbers,
-> lists, relative time and collation. A server-rendered page therefore ships
-> English formatting to **every visitor — every browser, every device, 100% of
-> traffic**, and no amount of the visitor having Firefox helps. Polish, Spanish,
-> Ukrainian and Russian all work in the same runtime; Icelandic is the one that
-> does not ([measurements](docs/measurements.md#bare-workerd-cloudflare-workers-no-polyfill)).
->
-> **If you run SSR on Cloudflare Workers, read [On the server](#on-the-server-polyfill)
-> and you can stop there.** The browser sections below are a smaller,
-> desktop-shaped problem, and the demo page is the fastest way to see whether it
-> is yours at all.
+**It is not an npm package and will not become one** (decided 2026-11-01,
+[#23](https://github.com/gudrodur/cldr-is/issues/23)). The code in `src/` is here
+to be read, copied and measured. The repository keeps its name because its URLs
+are already in use.
 
 ### → [Does your browser speak Icelandic?](https://gudrodur.github.io/cldr-is/)
 
-One page, twelve checks, run in whatever browser opens it and compared against
-what CLDR actually says. **Open it in Chrome and in Firefox** — that is the whole
-problem in one comparison, and it takes ten seconds.
-
-If everything passes, the bug is invisible from where you are sitting, which is
-one way it reaches production — the other, and the bigger one, is the server
-(see the box above). Firefox, Safari and Node ship full ICU; Chrome and Edge on
-the **desktop** do not. On Android every Chromium build that has Icelandic is
-missing exactly one piece of it, and two reports of the same version disagree
-about whether it is there at all. (Firefox on Android has all of it.) Readers of
-this page found that in an afternoon.
-
-**Status: builds and packs; not published yet.** `npm pack` produces a tarball
-whose four entry points import and behave from a project that has never seen
-this repo, and CI checks exactly that on every push — because "typechecks" and
-"can be imported" are different states, and this package spent months in the gap
-between them: `exports` pointed at raw `./src/*.ts` and `allowImportingTsExtensions`
-forced `noEmit`, so nothing without a TypeScript-aware bundler could load it and
-no test said so.
-
-Two things worth knowing before installing:
-
-- **`./collate` and `./format` are dependency-free in the bundle.** The emitted
-  `dist/collate.js` and `dist/format.js` contain zero imports, asserted in CI on
-  the emitted files rather than on the intent. A bundler that takes only those
-  ships none of `@formatjs`.
-- **They are not dependency-free at install.** `./server` and `./client` need the
-  four `@formatjs` packages, so `npm install` fetches them whichever entry point
-  you use. Copying `src/format.ts` or `src/collate.ts` into your own tree remains
-  a supported way to use this repo, and for those two it costs you nothing.
-
-**It is a recipe as much as a package, and copying it is a supported way to use
-it.** For dates and numbers, hand-writing your own is a reasonable choice — the
-code is thirty lines and you can write them. What is worth taking is not the
-code but the parts that are easy to get wrong and invisible when you do: the
-CLDR values, the three traps in [`src/format.ts`](src/format.ts), and above all
-the way to check your own work (["Pin it to
-Node"](#pin-whatever-you-write-to-node) below). Copy the file, keep the tests,
-delete the rest. For **collation** the advice is the opposite: do not hand-write
-it — see [below](#collation-the-part-no-polyfill-can-fix) for why.
+Twelve checks that run in whichever browser opens the page. Open it in Chrome and
+in Firefox to see the problem in ten seconds.
 
 ## The problem
 
-Chromium keeps only "the minimum locale data for non-UI languages", and
-Icelandic is one of them because Chrome's own UI is not translated to it. Every
-runtime built on Chromium's ICU inherits the gap:
-
-- **Chrome and Edge on the desktop** — `new Date().toLocaleDateString("is", { month: "long" })`
-  returns `December`, not `desember`. This is Chrome's *build*, not the engine:
-  see the Vivaldi measurement below, which is the same Chromium with Icelandic
-  present. **Opera has since been measured — on Android, where it has Icelandic**
-  (below); Opera on the desktop and Brave anywhere are still unmeasured, and the
-  Android result is a reason to stop assuming rather than to assume the other
-  way. If you use one, the demo page will tell you in a second. **Firefox is not affected** — every
-  Gecko row reported so far passes all twelve (the `Firefox … / iOS` row
-  excluded — that one is WebKit, see below), across Linux, Windows, macOS and
-  Android, and on every version anyone has reported, on the same page where Chrome 152 fails
-  eleven of twelve. (The `Firefox … / iOS` row is not one of them: it is WebKit,
-  see below.) That is what makes this easy to miss: the developer testing
-  in Firefox sees Icelandic and ships English to most of their visitors. **Safari
-  is not affected either** — Safari 26 on macOS passes all twelve checks,
-  reported through the page on 2026-09-08. On iOS a WebKit row passes all twelve
-  too, but it **cannot be attributed to Safari**: it was recorded while the
-  family table's Safari pattern was broken, so it reads `other / iOS`, and the
-  user agent that would say which browser it was is discarded before storage. **Every `/ iOS`
-  row measures Apple's WebKit**, whatever name the label carries: Apple requires
-  it, so the `Firefox 155 / iOS` and `Chrome 150 / iOS` rows that arrived say
-  nothing about Gecko or Chromium respectively — both are measurements of
-  Safari's engine. On iOS the browser name is a skin. Those two rows are also
-  the evidence that the family table's iOS patterns work now: every iPhone
-  report landed in `other` until they were fixed on 2026-09-08, and none has
-  since. There is no Apple
-  hardware in this project, so those reports are the measurement. The first one
-  arrived as a screenshot with no version in it, which is why the page records a
-  runtime label now and why these two carry numbers.
-- **Cloudflare Workers** embeds the same ICU data — measured both on `workerd`
-  locally and on a bare Worker deployed to the real edge, which agree exactly —
-  so a server-rendered
-  page has the gap too. Upstream:
-  [cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64), open
-  since 2022.
-
-Node ships full ICU and is fine — which is why Node is the right oracle to test
-against, and why a test suite can pass while production is wrong.
-
-### Android Chromium has Icelandic because Chromium's build says so
-
-This section was written twice from crowd reports and retracted twice. The
-answer was not in the reports at all — it is in Chromium's own ICU filter
-files, which anybody could have read on the first day.
-
-Chromium trims ICU data through per-target JSON filters in
-[`chromium/deps/icu/filters/`](https://chromium.googlesource.com/chromium/deps/icu/+/refs/heads/main/filters/).
-Fetched and parsed 2026-09-08, independently by two readers:
-
-| | `common.json` (desktop) | `android.json` |
-|---|---|---|
-| `is` in `curr_tree` | **no** | **yes** |
-| `is` in `coll_tree` | **no** | **yes** |
-| `is` in `region_tree` | **no** | **yes** |
-| `is` in `zone_tree` | **no** | **yes** |
-| `is` in `unit_tree` | **no** | **yes** |
-| `is` in `localeFilter.includelist` | yes (153 entries) | yes (114) |
-
-**Android is the generous filter and the desktop is the strict one** — the
-opposite of what "mobile builds trim harder" would suggest. `android.json` repeats a comment naming
-twenty-one locales, once above each of `curr`, `coll`, `unit` and `zone`, and
-`is` is in the list. (`region_tree` gains `is` too, with no such comment, and
-the comment never says "over desktop" — that comparison is mine, from
-`common.json` lacking `is` everywhere `android.json` has it.)
-
-> `// Also add new locales after that:`
-> `// "af", "az", "eu", "gl", "hy", "is", "ka", "kk", "km", "ky", "lo", "mk", "mn",`
-> `// "my", "ne", "pa", "si", "sq", "ur", "uz", "zu"`
-
-Note what `is` being in *both* `localeFilter` lists means: the locale is never
-removed wholesale. What differs is the per-tree feature filters, and that is the
-whole mechanism. (`lang` is not one of them — it lives in `resourceFilters`, so
-a reader looking for `featureFilters.lang_tree` will not find it.)
-
-### And the one check that fails on Android is the one the filter drops
-
-Every Chromium row from Android **that has Icelandic** fails `currency` and
-nothing else. (Two rows do not have it — see below; the qualifier is
-load-bearing, and an earlier draft of this very sentence dropped it.) That is
-not a coincidence:
-
-`android.json` keeps a **subset** of currency display names — 74 `+/` rules
-covering 73 distinct codes — and **ISK is not among them**. `common.json` keeps
-159, ISK included. So an Android build has Icelandic number formatting and no
-Icelandic name for the króna.
-
-A reader photographed exactly that, from Messenger on a phone:
-
-```
-their browser         2.500 ISK
-CLDR                  2.500 kr.
-```
-
-The grouping separator is Icelandic. Only the symbol fell back to the ISO code,
-which is what ICU does when a currency display name is missing. One link there
-is unmeasured and worth naming: Node with full ICU produces that exact string
-when asked for code display, but no trimmed build exists here to watch the
-fallback happen. The output matches; the path to it is taken on ICU's
-documented behaviour.
+Chromium keeps only minimal locale data for languages its own UI is not
+translated into, and Icelandic is one of them. Code that passes `"is"` to `Intl`
+gets English back, with no error:
 
 ```js
-(2500).toLocaleString("is", { style: "currency", currency: "ISK" })
-// → "2.500 kr."
-(2500).toLocaleString("is", { style: "currency", currency: "ISK", currencyDisplay: "code" })
-// → "2.500 ISK"     ← the screenshot
+new Date(2026, 11, 7).toLocaleDateString("is", { month: "long" }); // "December"
+(1234567.89).toLocaleString("is");                                 // "1,234,567.89"
+["Örvar", "Þórður", "Ævar"].sort(new Intl.Collator("is").compare); // wrong order
 ```
 
-**Eleven of the twelve checks are predicted exactly by the filter files** — ten
-of the eleven passes, plus the single failure. `plural` is the twelfth and the
-filters predict nothing about it, which is the next section's first item. See
-[`/summary`](https://intl-is-reports.gudrodur.workers.dev/summary) for the
-current rows rather than a count typed here.
-
-### What the filters do not explain, stated rather than papered over
-
-**`plural` passes everywhere, and nothing in the filters says why.** It fails in
-zero rows — including desktop Chrome rows where the locale resolves `en-US` and
-eleven other checks fail. Plural rules are supplemental data, in none of the
-five trees, and `pluralData` is not in the kept `supplementalData` rules either.
-Whatever supplies them lives outside these files. This is the sharpest open
-question left here.
-
-**Edge on the desktop sorts Icelandic correctly, and `common.json` says it
-should not.** There is no `is` in the desktop `coll_tree`, so the filter
-predicts Edge should sort like Chrome. It does not, because Edge overlays its
-own fuller ICU data — measured directly [below](#read-the-data-file-itself-it-is-80-bytes-versus-9360).
-A vendor build can contradict the upstream filter, and one does.
-
-**One `Chrome 151 / Android` row has none of it, beside others that have all of
-it.** Filter files are build-time constants baked into `icudtl.dat`; they cannot
-produce opposite results from the same build, so they cannot explain this row at
-all and no mechanism is offered here. Device language was the standing
-suspicion, and there is now evidence against it: a `WebView 151 / Android` row
-reports `language: "en"` — an English-language device — with the Icelandic data
-fully present. One row is not a refutation, but it is more than the hypothesis
-ever had.
-
-**One caveat on all of the above.** The filters were read from `refs/heads/main`
-on 2026-09-08; the browsers in the crowd data shipped months earlier. Tree
-membership could have moved since those builds. The fit is close enough that
-this is unlikely to change the conclusion, and it is unverified.
-
-### Being Chromium is not the same as being broken: Vivaldi
-
-An earlier version of this README said "Chrome, Edge, Opera, Brave, and anything
-else on the same engine". A reader pointed out that Vivaldi speaks Icelandic,
-and they were right. Measured 2026-09-08 on this machine, both browsers on
-Chromium 152, minutes apart:
-
-| | Vivaldi 8.2.4 | Chrome 152 |
+| runtime | what fails | how it was measured |
 |---|---|---|
-| `Intl.DateTimeFormat("is").resolvedOptions().locale` | `is` | `en-US` |
-| month `long` | `2. september 2026` | `September 2, 2026` |
-| number | `1.234.567,89` | `1,234,567.89` |
-| currency | `2.500 kr.` | `ISK 2,500` |
-| `localeCompare(_, "is")` sort | `… Ýrr, Þórður, Ævar, Örn` | `… Örn, Úlfur, Ýrr, Þórður` |
-| two-letter locales with `DateTimeFormat` data | **61** | 60 |
-| ditto with `Collator` data | **54** | 53 |
-| `icudtl.dat` | 10,957,760 B | 10,876,560 B |
+| Cloudflare Workers | everything except plural rules, for **every visitor** of a server-rendered page | bare `workerd` and a real deployed Worker |
+| Chrome and Edge on the desktop | nearly everything (Edge sorts correctly) | this machine, and reports through the page |
+| Chromium browsers on Android | the króna symbol only: `2.500 ISK` | reports through the page, explained by Chromium's build filters |
+| Firefox, Safari, everything on iOS, Node | nothing | reports through the page |
 
-**One locale of difference. 81,200 bytes.** Neither ships an Icelandic UI
-translation, so this is not the "non-UI language" rule doing its job — whatever Vivaldi's build does
-differently, it does not apply that filter, and it costs them 0.7% of their ICU
-data. The reasoning inside Vivaldi is not observable from here; the bytes are.
+Your tests can pass while production is wrong, because Node has the full data. If
+you develop in Firefox, you will not see it at all.
 
-That number is worth holding onto, because the argument against fixing this
-upstream has always been about size, and nobody had measured the size of *one
-locale*. The figure that gets quoted, ~10 MB to ~30 MB, is for swapping in the
-entire full-ICU data file, and it was never a measurement either (see the
-upstream section below).
-
-Measured 2026-09-05 on bare workerd and Chrome 152: for `is`,
-`Intl.DateTimeFormat`, `NumberFormat`, `RelativeTimeFormat`, `ListFormat` and
-`Collator` all resolve to `en-US`; only `PluralRules` is correct. Full tables in
+The reasoning, the evidence and the corrections are in
+[docs/research.md](docs/research.md). The raw tables are in
 [docs/measurements.md](docs/measurements.md).
 
-## Two ways to close it
+## The methods
 
-|  | polyfill the data | format manually |
-|---|---|---|
-| what it is | load formatjs's CLDR data for `is` | render Icelandic from a month table and a few string joins |
-| browser cost | **191,966 B gzip**, Chromium visitors only | **2,774 B gzip**, everyone |
-| speed | ~800 ns with the formatter reused; **~28,000 ns** per `toLocaleString` call that passes an options object | ~80 ns |
-| covers collation | a `Collator` polyfill exists, but **707,603 B gzip and 12.7% off ICU across Latin** — see below | yes |
-| covers arbitrary locales and options | yes | no, only the shapes you write |
+Full detail, code and traps for each one: **[docs/methods.md](docs/methods.md)**.
+Sizes are gzip, for what a reader would actually ship, and come from
+`npm run measure:methods`, which writes [docs/methods.json](docs/methods.json).
 
-Both were built and shipped in the same application. The recommendation below is
-what came out of running them, not a preference stated in advance.
+### Dates and numbers
 
-### On the server: polyfill
-
-The server is where the polyfill earns its size. It is loaded once per isolate,
-not per visitor, and it makes every `Intl` class work for every locale the site
-serves — which matters the moment the site is not Icelandic-only.
-
-```ts
-// server entry, FIRST import
-import "cldr-is/server";
-```
-
-Four things that are not obvious and each cost a debugging session:
-
-- it has to be `polyfill-force`, not `polyfill`: the runtime *has* an
-  `Intl.DateTimeFormat`, it just answers in English, so the conditional polyfill
-  decides nothing is wrong and does nothing;
-- `polyfill-force` replaces the global class for **every** locale, so a server
-  that formats other languages must load their data too, or they regress. This
-  line used to say the regression looked like `en` pluralising 21 as "one" and
-  Polish relative time coming out in Icelandic. Re-measured on the versions this
-  repo pins: `en` and `de` relative time do come out in Icelandic, and
-  **Polish throws** — `TypeError: Cannot read properties of undefined (reading
-  'indexOf')`. A crash is easier to notice than wrong text, which makes the
-  original warning understate the failure rather than overstate it;
-- leave `PluralRules` native — it is already correct for `is`, and faster;
-- a one-line self-test on a health endpoint is worth having, because this failure
-  is silent and looks like English copy.
-
-### In the browser: format manually
-
-This is the part where our recommendation changed after measuring it.
-
-The obvious move is to load the same data in the browser behind a
-`shouldPolyfill` gate. We built that ([`src/client.ts`](src/client.ts)), shipped
-it behind a flag, measured it, and **turned it off**: 191,966 B gzip, most of it
-the time-zone table `@formatjs/intl-datetimeformat` needs, to fix a handful of
-rendered dates. The manual formatters that replaced it are 2,774 B gzip for
-dates, numbers *and* collation — 69× smaller. (That figure is every export of
-both modules, bundled with esbuild and gzipped, so it can be reproduced. An
-earlier README said 1,618 B, measured over only the subset one application
-imported, which nobody else could check.)
-
-They are also faster, but read that claim carefully rather than off the table
-above. `toLocaleString(locale, options)` costs ~28 µs because it builds a
-formatter on nearly every call; the same call **without** an options object is
-~930 ns, and a hoisted `Intl.DateTimeFormat` you reuse is ~816 ns. So against
-the code we actually replaced — 36 call sites — manual is between 12× and 350×
-faster depending on the site, and against a reader who caches their formatter
-properly it is about 10×.
-
-That range is the honest shape of it, and an earlier version of this paragraph
-hid it by saying the 35 sites "all passed options". Counted from the diff: **17
-passed an options object** (the ~28,000 ns case, where manual is ~350× faster)
-and **18 passed only a locale string** (the ~930 ns case, where it is ~12×). The
-dramatic number belongs to half the sites, and it is dramatic because of a
-pattern that is easy to fix without any of this.
-
-[`src/format.ts`](src/format.ts) has the shapes we needed, and
-`formatIsNumber` beside them. Import them, or copy the file — both are fine.
-
-### Pin whatever you write to Node
-
-This is the part that matters more than the code, and the reason "write it by
-hand" is safe advice here rather than reckless. **The runtime you are developing
-in cannot tell you whether your Icelandic is right** — your Chrome is the broken
-one. Node still has the data, so Node is the oracle:
-
-```ts
-// Node full ICU renders what CLDR says. Assert against it, not against taste.
-expect(formatIsDateTimeNumeric(d)).toBe(
-  d.toLocaleString("is-IS", { day: "2-digit", month: "2-digit", year: "numeric",
-                              hour: "2-digit", minute: "2-digit" }),
-);
-```
-
-Write that once per shape and the hand-written table stops being a guess. It is
-what catches the abbreviated months (`sep.` with a period, `maí` without), and
-it is why copying this repo's *tests* matters more than copying its code.
-
-**Once per shape is where this repo stopped, and it was not enough.** For a long
-time `formatIsNumber` was pinned over 20,000 pseudo-random values while the eight
-date shapes were pinned at a single instant each, two exported functions
-(`formatIsDateTime`, `formatIsTime`) had no test at all, and the three exported
-name tables were never compared to CLDR directly — all under one sentence saying
-the module was pinned to CLDR. [`test/parity.test.ts`](test/parity.test.ts) now
-walks every shape instead:
-
-> 18 shapes (each formatter on both the string and the `Date` input), 100,000
-> instants spread over the years 1600–2400 in `Atlantic/Reykjavik` and 10,000 in
-> each of `Europe/Copenhagen`, `America/Los_Angeles`, `Pacific/Kiritimati`
-> (UTC+14), `Pacific/Niue` (UTC−11) and `Asia/Kathmandu` (UTC+5:45), plus the
-> same sweep against the copy of this module running in production.
-> **~3.8 million comparisons, zero divergences** (2026-09-09).
-
-### Iceland has no DST, and that is a hole in the test bench
-
-Iceland dropped daylight saving in 1968 and nearly every European country kept
-it. So the zone the code is *for* is the one zone where an offset never moves,
-and a suite run there exercises the whole DST axis on nothing at all. Measured
-over the sweep's own 5,000 instants: **30.1% carry a summer offset in
-`Europe/Copenhagen`, 34.4% in `America/Los_Angeles`, and 0.0% in
-`Atlantic/Reykjavik`.**
-
-That is the real reason CI runs elsewhere, sharper than the date-line one. It is
-not theory: changing `formatIsTime` to read local fields instead of UTC fails
-**four** tests in Copenhagen and **one** in Reykjavík — and that one only because
-of the historical pin below. Without it, the mutation is invisible in Iceland.
-
-### The instant shapes were testing themselves
-
-`formatIsDateTime`, `formatIsTime` and `toDatetimeLocalValue` read `getUTC*` and
-render the result as Icelandic time, on the ground that Iceland is UTC+0
-year-round. That is a claim about the world. Referencing it against
-`timeZone: "UTC"` — which this repo did — asserts `getUTCHours()` equals
-`Intl(timeZone: "UTC")`, an identity between two spellings of the same thing. It
-cannot fail for any reason connected to Iceland. Against the **zone** it can, and
-does.
-
-Three limits came out of all this, each pinned rather than described:
-
-- **The Icelandic claim holds from 1970, and before that nothing can check it.**
-  Against `timeZone: "Atlantic/Reykjavik"` the module diverges on 39.6% of a
-  100,000-instant sweep over 1600–2400 — every instant before 1912, by 16
-  minutes 8 seconds. **That 16:08 is not Reykjavík's.** tzdata merges zones that
-  have agreed since 1970 and keeps one history, so `Atlantic/Reykjavik` is a
-  backward link to `Africa/Abidjan`, and what the platform calls Icelandic local
-  time before 1912 is *Abidjan's* local mean time (4.03° W). Reykjavík is at
-  21.9° W, so its LMT was about −01:28, and Iceland's real history — UTC−1 from
-  1908, with DST in 1917–1919, 1921 and 1939–1968 — **is not in any JavaScript
-  runtime**. The floor is 1970 because that is where the data starts being about
-  Iceland, not where the module starts being right.
-- **Parity stops at year 1.** ICU renders the year of era and, with no era
-  requested, drops the marker, so the astronomical year 0 prints as `1` and −44
-  as `45`. This module prints the astronomical year. Both are defensible; they
-  disagree.
-- ~~**A malformed date-only string renders the literal text `undefined`.**~~
-  **Fixed.** `dateFields()` used to split the first ten characters on `-` without
-  checking what it got, so `formatIsDate("2026-06")` returned
-  `"undefined. júní 2026"`. It now reads the string's own calendar date; failing
-  that treats it as an instant; failing that returns `IS_NO_DATE` (`—`).
-  Throwing, as ICU does, was the other candidate and was rejected: these run
-  inside React renders, where one bad row would take down a whole list.
-
-  Rung one is **better than routing through `new Date`**, not merely equal to it.
-  V8 parses a non-canonical date-only string as *local* midnight, so in
-  `Pacific/Kiritimati` `new Date("2026-6-1")` is `2026-05-31T10:00Z` and an ICU
-  reference built from it renders **31. maí** for a string whose face says
-  1. júní. Reading the parts renders 1. júní in every zone. Measured across six
-  zones for eleven shapes, including `2026-06`, `2026`, `2026-02-30` (rolled to
-  2. mars, zone-free, the way ICU rolls it), a five-digit year and the Postgres
-  space form.
-
-Two ways to get the test itself wrong:
-
-- **Do not pin with `timeZone: "UTC"` on the Intl side unless the call site
-  passes one.** That makes the equality true by construction and hides the bug
-  it was meant to catch. It hid exactly this one from us for a review round: the
-  date+time shapes were reading UTC parts where the calls they replaced read the
-  viewer's, which matched perfectly in Reykjavík and diverged in 19 of 49
-  comparisons in `Europe/Copenhagen`.
-- **Run the suite in more than one time zone.** `TZ=Europe/Copenhagen npm test`
-  costs nothing and is the only thing that would have caught the above.
-
-### Server-rendered pages: the two halves must agree
-
-This is the reason the choice matters more on an SSR page than in a SPA. If the
-server formats with full data and the client re-renders with fallback data, the
-markup disagrees with itself and React reports a hydration mismatch — or worse,
-silently keeps one of the two.
-
-There are only two coherent answers: the same data on both sides, or manual
-formatting on both sides. **Icelandic formatting manual everywhere** is the one
-we run: the server keeps the polyfill for the other locales and for anything
-still going through `Intl`, while every Icelandic date, number and sort on both
-sides comes from the same pure functions. They cannot disagree, because they are
-the same code — and they are right, because they are pinned to CLDR.
-
-Measured on the live site in Chrome 152 (2026-09-07): 26 formatted Icelandic
-dates in the server markup, every one present identically in the hydrated DOM,
-zero console errors or warnings. In that same browser at that same moment,
-`toLocaleDateString("is-IS", { month: "long" })` returned `August 15, 2026` and
-`Intl.DateTimeFormat("is").resolvedOptions().locale` returned `en-US`. The
-runtime was broken and the page was right.
-
-## Collation: the part no polyfill fixes cheaply
-
-This section used to say formatjs had no `Collator` polyfill at all. That was
-asserted rather than checked, and it was wrong:
-[`@formatjs/intl-collator`](https://www.npmjs.com/package/@formatjs/intl-collator)
-has been on npm since 2026-05-14. Measured against the native
-`Intl.Collator("is")` it replaces, with Node full ICU as the oracle:
-
-| @formatjs/intl-collator 0.2.7 | |
-|---|---|
-| an ordinary ten-name Icelandic list | **correct** |
-| Icelandic alphabet + tailored letters, 5,473 ordered pairs | 10 divergences, all on `ä` / `ø` / `å` |
-| every ordered pair of the 450 Latin letters, 202,500 | **25,766 divergences (12.7%)** |
-| bundled, minified, gzipped | **707,603 B** |
-
-Its own README says why: it provides "the ECMA-402 constructor/prototype surface
-and a deterministic baseline comparator", with "full CLDR/UCA collation data
-compilation" still future work. So collation *is* installable now — the basics
-land, CLDR exactness does not, and 707 KB gzip is not a price a page pays for
-sorting.
-
-Without it, on Chrome and on workerd `localeCompare(_, "is")` silently sorts by
-the English alphabet — **on Edge for Windows it does not, see below**:
-
-```
-ö z á a þ t æ e ð d   →  aáædðeötzþ   (en-US fallback)
-                      →  aádðetzþæö   (Icelandic)
-```
-
-`á é í ó ú ý ð þ æ ö` are letters in their own right, not accented variants. In a
-member list, Ævar lands second instead of second-to-last and Þórður sorts among
-the T's.
-
-### Edge on Windows sorts Icelandic correctly. Chrome on the same engine does not.
-
-This began as one row on 2026-09-08 and was written up as "one row is not a
-finding". A second arrived at a different major the same day, and each has a
-same-engine Chrome counterpart on the same operating system:
-
-| Windows | engine, as recorded | dates | sort |
+| method | added size | correct? | measured? |
 |---|---|---|---|
-| Chrome 152 | `Chromium 152` | `en-US` | **fails** |
-| **Edge 152** | `Chromium 152` | `en-US` | **passes** |
-| Chrome 153 | `Chromium 153` | `en-US` | **fails** |
-| **Edge 153** | `Chromium 153` | `en-GB` | **passes** |
+| [Format by hand](docs/methods.md#format-by-hand) | **1,361 B** | yes, for the shapes you write | yes |
+| [Polyfill on the server](docs/methods.md#polyfill-on-the-server) | 0 B to the browser, about 500 KiB gzip on the Worker | yes, every shape | yes, in production |
+| [Polyfill in the browser](docs/methods.md#polyfill-in-the-browser) | **197,464 B**, Chromium visitors only | yes, every shape | yes, then turned off |
+| [Format on the server, send strings](docs/methods.md#format-on-the-server-and-send-strings) | 0 B | as correct as the server | size by construction, not in production |
+| [Run SSR on a full-ICU runtime](docs/methods.md#run-ssr-on-a-full-icu-runtime) | 0 B | yes, server output only | Node's output yes, not as a deployment |
+| [date-fns `is`](docs/methods.md#date-fns-and-dayjs) | **7,181 B** | short months differ from CLDR, 6 of 12 | yes |
+| [dayjs `is`](docs/methods.md#date-fns-and-dayjs) | **4,099 B** | short months differ from CLDR, 11 of 12 | yes |
+| [Borrow `de` or `da` for numbers](docs/methods.md#borrow-a-locale-for-numbers) | 0 B | plain numbers and króna yes, percent no | yes, on Chrome and `workerd` |
 
-Two further `Chrome 152 / Windows` rows fail `sort` the same way but predate the
-engine column and read empty there, so they are left out of a table whose whole
-point is the engine. Nothing turns on them: for Chrome the family number *is*
-Google's Chromium number, so their engine is not in doubt — but it is inferred,
-and this table only shows what was recorded.
+### Sorting
 
-Both Edge rows read 10 of 12 today (`/summary` is the authority; this is a
-count a stranger can change), so two checks pass: `sort`, and `plural` — which
-every row in this data passes, desktop Chrome included, for reasons the filter
-files do not explain (above). Collation is the only thing Edge gets right that
-the Chrome rows beside it get wrong.
-
-**The check is not weak.** Those ten names come out in a demonstrably different
-order under `en`, `en-GB`, `en-US` and the root locale when checked against
-Node full ICU — one run, no committed script. No collator passes it by accident.
-
-**What that rules out.** Not a Chromium version — two majors. Not the operating
-system — Chrome fails on the same one. Not the engine build — at both majors
-the `engine` column recorded the Chrome row and the Edge row as the same
-Chromium. What is left is Edge's own ICU data.
-
-**What it does not establish.** Why; whether Edge does this on macOS or Linux,
-neither of which has reported; and whether `Intl.Collator("is")` actually
-resolves to `is` there or merely behaves as though it does — the page only
-started sending the collator's resolved locale on 2026-09-08 and both Edge rows
-predate it. These are still self-submitted reports — four rows, which is not the same as
-four machines, not a controlled measurement. **If you have Edge, opening the page
-adds the row that settles the mechanism.**
-
-**So the practical advice splits by browser**, which the top of this section did
-not previously allow for. For Chrome, and for workerd where the gap is measured
-directly, `localeCompare(_, "is")` sorts by the English alphabet and you need
-what is below. For Edge on Windows, on this evidence, sorting already works —
-while its dates and numbers still do not.
-
-### Confirmed locally, and it is not Windows-specific
-
-The two Edge rows above are self-reports from Windows. On 2026-09-08 the same
-thing was measured directly, on this machine, on **Linux** — which also settles
-whether it is Windows-specific. It is not.
-
-`microsoft-edge-stable-152.0.4191.66` extracted from Microsoft's rpm (no
-install, see below), run headless against the same twelve checks:
-
-| Edge 152 / Linux | |
-|---|---|
-| `Intl.DateTimeFormat("is").resolvedOptions().locale` | `en-US` |
-| `Intl.NumberFormat("is").resolvedOptions().locale` | `en-US` |
-| **`Intl.Collator("is").resolvedOptions().locale`** | **`is`** |
-| long month | `September 2, 2026` |
-| number | `1,234,567.89` |
-| sort | **correct** |
-
-So it is not a behaviour that happens to look right — **ICU genuinely resolves
-`is` for collation and `en-US` for everything else in the same browser.** That
-is the mechanism the `resolvedCollator` field was added to capture, confirmed
-without waiting for a report to carry it.
-
-### Read the data file itself: it is 80 bytes versus 9,360
-
-Everything above was inferred from behaviour and file sizes. On 2026-09-08 the
-`icudtl.dat` files were parsed directly instead — the ICU package table of
-contents lists every entry with an offset, so each locale's bytes can simply be
-read off. No inference left.
-
-Every Icelandic entry in three Chromium **152** builds:
-
-| entry | Chrome 152 | Vivaldi 8.2 | Edge 152 |
+| method | added size | divergent Latin letter pairs, of 202,500 | measured? |
 |---|---|---|---|
-| **`is.res`** (root: dates, months, weekdays, number symbols) | **80 B** | **9,360 B** | **80 B** |
-| `coll/is.res` (collation) | — | 23,872 B | 23,872 B |
-| `curr/is.res` (currency) | — | 14,736 B | 14,736 B |
-| `zone/is.res` | — | 15,280 B | 15,280 B |
-| `region/is.res` | — | 6,336 B | 6,048 B |
-| `unit/is.res` | — | 5,840 B | 5,840 B |
-| `lang/is.res` | 112 B | 5,936 B | 112 B |
-| **total Icelandic** | **192 B** | **81,360 B** | **65,968 B** |
+| [`compareIs`, by hand](docs/methods.md#compareis-by-hand) | **1,813 B** | **0** | yes |
+| [`@formatjs/intl-collator`](docs/methods.md#formatjsintl-collator) | **808,896 B** | 25,766 (12.7%) | yes |
+| [Native, gated on support](docs/methods.md#native-gated-on-support) | 1,813 B as the fallback | 0, and faster where native exists | partly |
+| [Borrow `da`, `nb` or `sv`](docs/methods.md#borrow-a-collator) | 0 B | 3,160 to 5,876, and a name list comes out wrong | yes, **do not use** |
+| [Sort in the database](docs/methods.md#sort-in-the-database) | 0 B | unknown | **no** |
+| [ICU4X](docs/methods.md#icu4x) | unknown | unknown | **no** |
 
-Three things fall out, and two of them correct what this page said earlier.
+## How to choose
 
-**1. The 81,200 bytes really is Icelandic, and now that is measured rather than
-reasoned.** Vivaldi's Icelandic entries exceed Chrome's by 81,168 B; the whole
-file differs by 81,200 B. The 32-byte remainder is presumably
-table-of-contents overhead; nothing here diffs the full entry lists, so
-"Vivaldi added `is` to five trees and changed nothing else" is what the totals
-imply rather than what was checked entry by entry. This was the weakest
-claim on the page — a byte delta between two files, attributed to one locale —
-and it survives.
+1. **Server-rendered on Workers?** That is the largest problem, since it reaches
+   every visitor. Polyfill on the server, or format by hand on both sides.
+2. **Dates, numbers and sorting in the browser?** Format by hand. It is 64× smaller
+   than the browser polyfill and it covers sorting, which the polyfill does not.
+3. **Many locales or arbitrary option shapes in the browser?** That is the case the
+   browser polyfill still wins.
+4. **Whichever you pick:** [pin it to Node](docs/methods.md#pin-it-to-node) and run
+   the suite in more than one time zone. Your browser cannot tell you whether the
+   Icelandic is right, and that check matters more than the choice of method.
 
-**2. `is` is not absent from Chrome. It is present and hollow.** The root entry
-exists at **80 bytes**, which is what "keeps only the minimum locale data for
-non-UI languages" means in practice: the bundle is there so lookups resolve, and
-it contains essentially nothing. Vivaldi's is 9,360 B. That is the difference
-between `desember` and `December` — **9,280 bytes.**
+## What two production sites do
 
-**3. Edge has the currency data and still gets currency wrong**, which corrects
-the earlier reading here that Edge "ships collation and nothing else". It ships
-`is` in *five* trees, byte-identical to Vivaldi in four of them. What it does
-**not** ship is the root bundle: 80 bytes, exactly Chrome's stub.
+They reached different answers to the same problem, and each has gaps worth
+learning from.
 
-That explains the whole Edge signature at once. Collation is self-contained in
-`coll/is.res`, so it works. Dates, month names and number symbols live in the
-root bundle, so they are English. And currency behaves as though it needs
-both — the
-symbol from `curr/is.res`, which Edge has, and the number pattern from the root
-bundle, which it does not — so it fails despite the currency data being present.
-A missing check is not always a missing file.
+- **[xj-greenfield](docs/worked-examples/xj-greenfield.md):** polyfill on the
+  server for seven languages, Icelandic by hand on both sides, and the browser
+  polyfill built and then turned off.
+- **[samtak-vefur](docs/worked-examples/samtak-vefur.md):** no polyfill, one hand
+  written date module and a guard that bans `Intl` elsewhere. Reading it for this
+  catalogue found number and sorting gaps, which that page describes.
 
-**So Edge's extra 1.5 MB is not Icelandic** — Icelandic is 66 KB of it. Edge
-restored the auxiliary trees broadly: `coll` 99 → 132 locales, `curr` 310 → 378,
-`region` 267 → 324, `unit` 261 → 326, `zone` 267 → 330. What it left alone, for
-every non-UI language, is the root bundle. Whatever the rule inside Microsoft
-is, it is not "add Icelandic".
+## Copying the code
 
-**And Edge ships 41,904 bytes of Icelandic that nothing can ask for.** Asking
-each `Intl` service directly, on Edge 152:
+- [`src/format.ts`](src/format.ts) and [`src/collate.ts`](src/collate.ts) import
+  nothing, and a test keeps it so. Copy them along with the matching tests in
+  [`test/`](test/).
+- [`src/server.ts`](src/server.ts) and [`src/client.ts`](src/client.ts) need the
+  `@formatjs` packages at the versions in [`package.json`](package.json).
 
-| `supportedLocalesOf(["is"])` | Edge 152 | Chrome 152 |
-|---|---|---|
-| `Intl.Collator` | **`["is"]`** | `[]` |
-| `Intl.DateTimeFormat` | `[]` | `[]` |
-| `Intl.NumberFormat` | `[]` | `[]` |
-| `Intl.DisplayNames` | `[]` | `[]` |
-| `Intl.ListFormat` | `[]` | `[]` |
-| `Intl.RelativeTimeFormat` | `[]` | `[]` |
+The licence is MIT.
 
-Collation is the only one of six services that can negotiate `is` at all. Yet
-`curr/is.res`, `zone/is.res`, `unit/is.res` and `region/is.res` are all in the
-file — the first three byte-identical to Vivaldi's, `region` 288 bytes smaller —
-and together they are 41,904 bytes that no API can reach — because the services that would read them refuse the locale
-before they get there.
+## Add to this
 
-So the comparison that matters is not how much Icelandic a build carries but
-whether the locale is available to the service that needs it: **Vivaldi spends
-9,280 bytes more than Edge on the root bundle and every service works; Edge
-spends 65,968 bytes on Icelandic and one service does.**
-
-**Reproduce it:** the entry names are plain ASCII in the package TOC, so
-`strings icudtl.dat | grep 'is\.res'` gets you the presence table with no tools
-at all. Sizes come from [`scripts/icu-entry-sizes.mjs`](scripts/icu-entry-sizes.mjs):
-`node scripts/icu-entry-sizes.mjs /opt/google/chrome/icudtl.dat is.res` prints
-`80  icudt78l/is.res` (plus `lang/is.res` at 112 bytes, 192 total).
-
-### 81,200 bytes buys all of Icelandic. Edge spends 1.5 MB and does not get it.
-### Do not report from an emulated device — it produces a false row
-
-Chrome DevTools' device toolbar, and `--user-agent` on the command line, change
-the user agent and the viewport. **They do not change ICU.** Measured the same
-day, Chrome 152 with an iPhone user agent:
-
-| Chrome 152, `--user-agent=<iPhone Safari>` | |
-|---|---|
-| what the collector would label it | `Safari 26 / iOS` |
-| `DateTimeFormat`, `NumberFormat`, `Collator` | `en-US`, `en-US`, `en-US` |
-| sort | **wrong** |
-
-That row would say Safari fails all twelve, which is false: every Safari row
-in the data passes all twelve, and there is one of them. Emulation is the one way to put a confidently wrong row into this
-data set, and nothing downstream could detect it, because the collector deletes
-the evidence by design. **Real browsers only.** For coverage nobody owns, a
-real-device cloud (BrowserStack, LambdaTest, Sauce Labs — all with free open
-source tiers) runs real builds on real operating systems; a device emulator does
-not.
-
-### Three different partial data sets, not one gap
-
-Lining the measurements up, Chromium builds are not simply missing Icelandic or
-not. They are missing *different parts* of it:
-
-| | dates, numbers, lists | currency | collation |
-|---|---|---|---|
-| Chrome on the desktop | ✗ | ✗ | ✗ |
-| Edge (Windows and Linux) | ✗ | ✗ | **✓** |
-| the Android rows that have Icelandic | **✓** | ✗ | **✓** |
-| desktop rows labelled Chrome that pass | **✓** | **✓** | **✓** |
-
-Those four signatures **partition every Chromium row collected** — no row falls
-outside them and none straddles two. Two caveats the table cannot carry: one
-Android row has none of it and sits in the first line rather than the third,
-which is the unexplained Android split above; and of the rows on the last line
-one carries a reader-typed build number (`8.2.4133.47`, which is
-Vivaldi's) but **no correction on a Chrome-labelled desktop row names a
-browser**, and the rest are unattributable for the reason given earlier.
-
-Which is what the ICU filter this whole page is about would predict, and is
-easy to miss if you treat "does this browser speak Icelandic" as one question.
-`curr_tree`, `coll_tree` and the date trees are separate entries in
-`third_party/icu/filters/common.json`, and these four signatures sit at
-four different points in that space.
-
-```ts
-import { compareIs } from "cldr-is/collate";
-
-names.sort(compareIs);
-```
-
-Pinned to Node full ICU over **every ordered pair of all 450 Latin letters**
-through Latin Extended-B — 202,500 comparisons, zero divergences — plus every
-pair of the Icelandic alphabet in both cases, 253 Icelandic country names, both
-the composed and decomposed spelling of every accented letter, ASCII
-punctuation, case, digits, and 500 000 random strings drawn from that set.
-
-The Latin coverage is not completeness for its own sake. `ł` used to fall
-outside the table, into a band below every letter, so **`Łukasz` and `Michał`
-sorted ahead of every Icelandic name in the list** — and Polish is the most
-widely spoken foreign language in Iceland. A list of names in the languages
-actually spoken here, Polish, Vietnamese, Turkish, Hungarian, Latvian, Czech and
-Norwegian among them, now comes out in exactly ICU's order.
-
-Four details were read off ICU rather than reasoned about, and all four would
-have been wrong from memory:
-
-- ICU orders punctuation by **DUCET category**, so `_` sorts before `-` despite
-  the higher code point.
-- `œ` and `ß` **expand** to `oe`/`ss` rather than taking a weight of their own —
-  and they are not equal to what they expand to. The level they differ on is the
-  **secondary**, which you can see by asking for `sensitivity: "accent"`: no case
-  level, and `ß` still sorts after `ss`. That is why ICU puts `aß` *after* `Ass`
-  even though `a` sorts before `A` — a secondary difference outranks an earlier
-  case difference, and a tertiary marker gets that pair backwards.
-- ICU **normalises before it compares**, so `"á"` and `"a" + U+0301` are the same
-  string to it. Text really does arrive decomposed — macOS filesystems, some
-  paste sources — so a comparator that skips this splits a name from its own
-  other spelling.
-- ICU's secondary order for **combining marks is not code-point order**: U+0306
-  (breve) sorts before U+0302 (circumflex). There are 59 distinct ranks among
-  the 112 marks in U+0300–U+036F, and they compare **position by position**
-  rather than as a set — so `ǡ` (a + U+0307 + U+0304) sorts *before* `ā`
-  (a + U+0304). Adding the code points together, which is the obvious shortcut,
-  makes `ô` and `ŏ` interchangeable.
-
-  **The limit of this, stated precisely:** those ranks are applied through the
-  decompose-to-a-base path, which only runs when NFC composes the base and its
-  mark back into one code point. `a` + U+0306 composes to `ă` and is ordered
-  correctly; `n` + U+0306 has no precomposed form, so the mark falls to the
-  fallback band and is ordered by code point instead. Over all 112×112 mark
-  pairs on such a base that is **37.8% divergent from ICU** — every Latin letter
-  the alphabet actually uses is fine, and a base with no precomposed form is
-  not. Doing better means making marks primary-ignorable and accumulating them
-  at the secondary level, which is a different algorithm from the one here.
-
-Not claimed: exact ICU order for characters outside the Latin script — Greek,
-Cyrillic, Hebrew, CJK, emoji, unlisted symbols. Two things *are* guaranteed for
-them. Two different characters never compare equal, because a caller reads 0 as
-"these are the same" and drops one of them. And an unlisted **letter** sorts
-after the alphabet rather than before it: both are wrong against ICU, but a name
-in a script this table does not cover belongs at the bottom of a member list,
-not ahead of `Aðalheiður`. That choice was measured rather than assumed — separate
-bands beat one shared band on every pool of real text, and lose in exactly one
-place, a uniform draw over the whole code space, which is mostly *unassigned*
-code points and therefore not text.
-
-**The percentages that used to be in this paragraph are gone on purpose.**
-`docs/measurements.md` records that an independent re-measurement could not
-reproduce most of them, and quoting a retracted figure here while the
-measurements page disowns it is worse than having no figure. The ordering held
-under re-measurement; the numbers did not. The one that reproduces exactly is
-the uniform draw, and it is the case that argues *against* this choice — which
-is why it is the one kept.
-
-It is **roughly 2× slower than a native `Intl.Collator`** — 2.4× in one run and
-2.02× in another, both on this one machine and both recorded in
-[docs/measurements.md](docs/measurements.md), which is the precision two runs
-support (17 ms versus 7 ms
-sorting 10 000 names) and the tables above cost **901 B gzip** on top of what it
-was before them. Those are the two measurements here that do not favour this
-approach, and they buy the whole Latin script.
-
-## The trap next door: date-fns is a separate axis
-
-A polyfill fixes `Intl`. It does not fix a library that never used `Intl`.
-[react-day-picker](https://daypicker.dev/) — and therefore every shadcn/ui
-calendar and date picker — localises through **date-fns**, so a fully polyfilled
-page still renders `October 2026` and `Su Mo Tu We Th Fr Sa` until a locale is
-passed:
-
-```ts
-import { is } from "date-fns/locale/is";
-<DayPicker locale={is} />   // október, Má Þr Mi Fi Fö La Su, Monday-first
-```
-
-One more thing to check once you do: date-fns's abbreviated Icelandic months are
-**not** CLDR's. date-fns gives `mars, apríl, júní, júlí, ágúst, sept.` where CLDR
-gives `mar., apr., jún., júl., ágú., sep.` — six of twelve differ. If anything
-else on the page renders CLDR short months, the calendar will not match it.
-
-That comparison is a claim about a package that can change it in a patch
-release, so it is not maintained by hand: `npm run measure` reads both tables —
-date-fns's and Node's — writes them into `docs/reference.json`, and
-`test/reference.test.ts` fails if date-fns ever ships different ones. The demo
-page renders that file rather than a copy.
-
-## The page, and how it is built
-
-[The page at the top](https://gudrodur.github.io/cldr-is/) is the only place the
-failure is *visible* rather than described. Source:
-[`docs/index.html`](docs/index.html).
-
-It reports what it measured, so a runtime nobody here owns still gets measured
-instead of guessed at — that is how Safari got into the table. What comes back is
-public: **[everything it has collected](https://intl-is-reports.gudrodur.workers.dev/summary)**,
-one row per runtime and verdict, with a runtime label rather than a user agent.
-
-It has to be served rather than opened off the disk (it loads two files beside
-it):
+A method missing from the tables, a measurement of one marked **no**, or a runtime
+nobody has reported belongs here. Open an issue, or open
+[the page](https://gudrodur.github.io/cldr-is/) in that runtime and send the report.
+A number needs its method and date beside it, because that is what makes a
+catalogue like this one worth trusting. The history in
+[docs/testing.md](docs/testing.md) shows what went wrong when one did not.
 
 ```bash
-npx serve docs      # then open the printed URL
+npm ci
+npm test                  # the methods, pinned to Node's full ICU
+npm run measure:methods   # rewrites docs/methods.json
+npm run probe             # bare workerd; needs wrangler on PATH
 ```
-
-The checks it runs are not a second copy of anything: `docs/cases.js` defines
-each one once, `scripts/measure.mjs` runs those same functions under Node's full
-ICU to produce the "correct" column, and the page imports the same file. A
-comparison page whose two halves have drifted apart is worse than no page.
-
-## Measurements
-
-Every number in this README, with its method and date:
-[docs/measurements.md](docs/measurements.md) — **except the
-`@formatjs/intl-collator` figures**. Those are a single run whose *results* are
-in a comment at the top of [`src/collate.ts`](src/collate.ts) and whose
-**method is written down nowhere** — how the package was bundled, how the pairs
-were generated. The line above said the method was in that comment, which was
-itself a claim about evidence that the evidence does not carry.
-`scripts/probe-worker-intl.mjs` re-measures a bare workerd for any locale
-(`npm run probe`, needs `wrangler` on PATH), so the gap can be re-checked per
-workerd release.
-
-## Do not wait for the upstream fix
-
-Use this today. But the reason to use it is not the one an earlier version of
-this README gave, and the difference matters if you were about to give up.
-
-**On Chromium, a fix was written in 2023, and it has been going backwards
-since.**
-
-- The request: [issues.chromium.org/40624456](https://issues.chromium.org/issues/40624456),
-  open since April 2019 — seven years as of 2026-09-08, 48 comments, and **58 votes**
-  (measured 2026-09-09; this said "158 stars", a number the tracker does not show —
-  it displays a vote count and no star count at all).
-- The fix: [crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575),
-  "Add `is` to common.json", uploaded by a Chromium engineer in May 2023,
-  rebased that August, still `NEW`. It adds `is` to `curr_tree`, **`coll_tree`**,
-  `unit_tree` and `zone_tree` — collation included, and the root bundle that
-  holds dates and months deliberately not; see below.
-
-The last substantive word on that CL is from October 2023: *"This will increase
-the data 60K for every users. Is this what Chrome team PM decide to increase the
-locale support?"* Nobody has answered it since. The question is nonetheless
-marked **resolved** — in Gerrit anyone may mark a thread resolved, and
-`unresolved_comment_count` is 0 on a change whose only substantive question was
-never answered. Do not read the counter as a state of the discussion.
-
-Two things have happened to it since, neither of them progress, both read off
-the Gerrit API rather than the web page:
-
-- **It no longer applies.** `"mergeable": false` — the red *Merge Conflict*
-  badge. Two and a half years after the last upload, the patch has bit-rotted.
-- **A reviewer took himself off it.** `2024-11-15  David Yeung -> CC (by David
-  Yeung)`, eleven months after Frank Tang's question. One of the two named
-  reviewers stepping down to CC is a human action and the opposite of movement.
-
-So this is **not** a refusal, and not quite the policy wall this README used to
-describe. The filter rule is real —
-[`filters/common.json`](https://chromium.googlesource.com/chromium/deps/icu/+/refs/heads/main/filters/common.json)
-keeps *"only the minimum locale data for non-UI languages"*, and the qualifying
-condition is whether Chrome's own UI is translated, not whether the language is
-used on the web. But a patch exists that would move Icelandic out of that list.
-
-What is blocking it is no longer *"one unanswered question about roughly 60 KB"*,
-which is what this section said until 2026-09-09 and which was true when it was
-written. It is now three things: the unanswered product question, a merge
-conflict, and a reviewer who left. The conclusion below gets stronger, not
-weaker — but the reason has to be the true one, and "the fix is written and
-waiting on review" reads as nearer than it is.
-
-### The CL does not fix Icelandic dates, and Edge is the proof
-
-This section said until 2026-09-09 that if the CL lands, *"Chrome's half of this
-problem ends, collation included"*. That is wrong, and the patch's own contents
-say so. Read from the CL's version of `filters/common.json` rather than from the
-commit message:
-
-| list | `is` after the patch |
-|---|---|
-| `localeFilter.includelist` | present — **and already was**, which is why Chrome ships an 80-byte `is.res` rather than none |
-| `curr_tree`, `coll_tree`, `unit_tree`, `zone_tree` | **added** — these are the four lines |
-| `region_tree`, `lang_tree` | deliberately left off, and the commit message says why |
-| `resourceFilters` | **untouched** — nothing stops the root bundle being trimmed to a stub |
-
-So the patch adds the four auxiliary trees and leaves `is.res` at 80 bytes. That
-configuration is not hypothetical: **it is what Microsoft Edge ships today**, and
-Edge's measured behaviour is what Chrome's would become — collation correct,
-dates English, currency wrong despite `curr/is.res` being present in full.
-
-The strongest evidence is not Edge, though. **The CL regenerates
-`common/icudtl.dat`, so the answer is inside the patch** — no inference about
-what a build would do. Parsing that file's package table of contents with
-[`scripts/icu-entry-sizes.mjs`](scripts/icu-entry-sizes.mjs):
-
-```
-icudt73l/coll/is.res    23,872
-icudt73l/curr/is.res    14,944
-icudt73l/unit/is.res     7,120
-icudt73l/zone/is.res    15,760
-icudt73l/is.res             80   <- the main bundle, still a stub
-icudt73l/lang/is.res       112   <- still a stub
-                        ------
-four trees added        61,696
-Gerrit size_delta       61,776
-difference                  80
-```
-
-Eighty bytes, fully explained: four entry names, NUL-terminated (48 B), plus four
-`{nameOffset, dataOffset}` pairs (32 B). The package index growing, and nothing
-else.
-
-**That retires the "2,048 bytes are unaccounted for" residue, and it retires the
-explanation this section gave for it on 2026-09-09, which was wrong.** The claim
-was that 2,048 is what the ICU package costs to carry four more entries. It is
-not; the package costs 80. The 2,048 was **ICU version drift**, and the mistake
-was comparing across versions without noticing: the CL's binaries are `icudt73l`
-and every browser measured here is `icudt78l`. Between those releases `unit`
-fell 7,120 → 5,840, `zone` 15,760 → 15,280 and `curr` 14,944 → 14,736, which is
-1,968 of the 2,048 by itself. An omp reviewer named version drift as a rival
-hypothesis; downloading the CL's own `.dat` rather than reasoning about it
-settled it.
-
-**The complete fix is a little under 70 KB of data**: the CL's four trees plus
-roughly 9 KB to stop trimming the main bundle (Vivaldi's full `is.res` is 9,360 B
-against Chrome's 80 B stub — an ICU 78 figure against the CL's ICU 73 binaries,
-hence the rounding). That is a more useful number for the product question than
-"60K", because the CL's 60K is **86.6%** of the bytes and none of the part a user
-sees. This section said "three quarters" until the arithmetic was checked.
-
-**workerd#64 is not a refusal. It is silence, which is worse.**
-[cloudflare/workerd#64](https://github.com/cloudflare/workerd/issues/64) was
-opened 2022-09-30. The maintainer was *receptive* — "annoying but maybe not a
-huge deal for a server binary" — and the reporter went and measured it: swapping
-in the full `icudt71l.dat` took the binary from 63 MB to 82 MB and nothing
-crashed. (The often-quoted "data goes from ~10 MB to ~30 MB" is the maintainer
-*asking* whether that follows, not a measurement anyone made.) Five comments
-over five days, and then
-**nothing: no comment, no label, no assignee, for 1,435 days** as of 2026-09-08.
-A willing maintainer and four years of silence is a worse signal than a "no",
-because a "no" can be argued with.
-
-**Mozilla went the other way and stopped, which is the interesting part.**
-[Bug 1612379](https://bugzilla.mozilla.org/show_bug.cgi?id=1612379) proposed
-trimming Firefox's ICU data from all 459 locales ICU ships down to the ones
-Firefox itself is translated into — 1,816,512 bytes off the `.dat` file, 11.1 MB
-to 9.3 MB — and it
-stalled on the principle that dropping languages with millions of speakers is
-not acceptable, and that once Firefox's intl data is available to the Web it
-should remain available. Deprioritised P2 → P5, to revisit "once we have ICU4X".
-
-That is the whole thing in one comparison: two vendors looked at the same couple
-of megabytes of locale data and reached opposite conclusions, and that is why
-your Icelandic dates work in Firefox and not in Chrome. It is a values split
-rather than a technical inevitability.
-
-**So why still not wait?** Not because nobody has asked — they have, for seven
-years, and the patch is written. Because none of the three threads is blocked on
-anything a user can supply. Chromium's needs a product decision, workerd's needs
-a maintainer to look at it again, and Mozilla's is waiting on ICU4X. Filing
-another bug adds nothing to any of them; the useful contribution is a
-measurement, which is why the Vivaldi figure went on the two live threads rather
-than into a new issue.
-
-Two things worth watching. The nearer one is
-[crrev.com/c/4514575](https://chromium-review.googlesource.com/c/chromium/deps/icu/+/4514575)
-— if it lands, Chrome's **collation** is fixed and its dates are not, for the
-reason set out above. "Nearer" is relative: it does not currently apply to
-`main`, so landing it now means somebody rebasing it first, and the product
-question it was stopped on has been unanswered for two years. The far one is **ICU4X**, which both threads independently point at: the workerd
-reporter ("I'm starting to understand why the Unicode Consortium is pushing
-ICU4X") and Mozilla's own resolution. Data loaded on demand per locale is the
-shape that makes this question go away, rather than the shape that makes someone
-choose which languages are worth 1.8 MB.
-
-## License
-
-MIT

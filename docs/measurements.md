@@ -67,7 +67,8 @@ where those two come apart.
 
 > **Read this section with the 2026-09-07 measurements below.** The browser half
 > below was built, shipped behind a flag and then **turned off**: 191,966 B gzip
-> was not worth it against 2,774 B of manual formatters. The server half is still
+> was not worth it against 2,774 B of manual formatters. (Re-measured 2026-11-01:
+> 197,464 B and 3,086 B, in [methods.json](methods.json).) The server half is still
 > running. This table is kept because the numbers are what settled the question.
 
 
@@ -251,7 +252,7 @@ Node 24 on one machine, `a.sort(compareIs)` against
 | **ratio** | **2.02×** |
 
 An earlier run over a different list gave 17.3 ms vs 7.3 ms, a ratio of 2.4×.
-Both are one machine, and the README says "roughly 2×" rather than either
+Both are one machine, and [research.md](research.md) says "roughly 2×" rather than either
 figure because that is the precision two runs support.
 
 **Why this number existed nowhere for an afternoon.** The 2.06× from a third run
@@ -431,3 +432,29 @@ The trap this table exists for: the CL page shows "3 resolved" comments and
 status `NEW`, which together read as a change in good order awaiting review. It
 is a change that does not apply, whose only substantive question was closed
 without an answer, and which one of its two reviewers has left.
+
+---
+
+# Borrowing a locale
+
+Measured 2026-11-01 on Chrome 156.0.8078.79 (a blank page in an isolated context) and
+bare `workerd` through `npm run probe` with wrangler 4.156.0. Node cannot answer this,
+because it carries every locale. The method's correctness counts are in
+[methods.json](methods.json).
+
+| locale | resolves on Chrome and `workerd` | 1234567.89 | Chrome: -1234.5 | Chrome: 1000 | Chrome: 0.125 as percent |
+|---|---|---|---|---|---|
+| `is` | **`en-US`** | `1,234,567.89` | `-1,234.5` | `1,000` | `12.5%` |
+| `de` | `de` | `1.234.567,89` | `-1.234,5` | `1.000` | `12,5 %` |
+| `da` | `da` | `1.234.567,89` | `-1.234,5` | `1.000` | `12,5 %` |
+| `nb` | `nb` | `1 234 567,89` | `−1 234,5` | `1 000` | `12,5 %` |
+| `sv` | `sv` | `1 234 567,89` | `−1 234,5` | `1 000` | `12,5 %` |
+| `es` | `es` | `1.234.567,89` | `-1234,5` | `1000` | `12,5 %` |
+
+Node's `is` for the same values is `1.234.567,89`, `-1.234,5`, `1.000` and `12,5%`.
+
+A ten-name list sorted on Chrome with each locale's collator: `da`, `nb` and `sv` give
+`Anna Ari Ásta Ðanni Sigríður Þórður Tómas Unnur Vala Ýrr Ævar Örvar`, which keeps æ and
+ö last and puts Þórður before Tómas. `de` gives the same order as `is` falling back to
+`en-US`. On `workerd`, the probe's fixed letters sort as `aádðetþzæö` under `da`, `nb` and
+`sv`, against Icelandic `aádðetzþæö`.

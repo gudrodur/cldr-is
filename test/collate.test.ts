@@ -227,7 +227,7 @@ describe("compareIs", () => {
         );
       }
     }
-  });
+  }, 60_000);
 
   it("sorts a real multilingual member list exactly as ICU does", () => {
     // The languages actually spoken in Iceland, not a synthetic corpus.

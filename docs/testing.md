@@ -164,7 +164,7 @@ This rule cost four corrections in one afternoon, three of them made *after*
 writing the previous one down, and one inside the very commit that explained the
 problem. It is the most-repeated mistake in this repository's history.
 
-The README describes a table that strangers append to by opening a page. Every
+[research.md](research.md) describes a table that strangers append to by opening a page. Every
 count written into it — "three browsers agree", "six Android rows", "four
 desktop rows", "across three majors" — was accurate when typed and wrong within
 the hour. Nothing failed. No test went red. The document simply became false
@@ -397,7 +397,7 @@ Both files declare `export const IS_WEEKDAYS`, so the address `^const` matched
 **nothing in either file**, `sed` printed nothing twice, and `diff` compared two
 empty streams and exited 0. The check reported agreement every time it was run,
 and the files had never agreed: greenfield's copy carries call-site comments
-naming its own routes, which the package cannot have and should not.
+naming its own routes, which the copy here cannot have and should not.
 
 The measured truth is narrower and worth stating precisely: the two are
 **code-identical and comment-divergent** — 34 non-comment lines apart, all of

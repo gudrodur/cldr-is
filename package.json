@@ -1,49 +1,17 @@
 {
   "name": "cldr-is",
-  "version": "0.1.0",
-  "description": "Icelandic dates, numbers and collation for JavaScript on runtimes that ship without the locale data (Chromium-based browsers, Cloudflare Workers). A recipe as much as a package.",
+  "private": true,
+  "description": "A catalogue of methods, with measurements, for Icelandic dates, numbers and sorting on runtimes that ship without the data (desktop Chromium, Cloudflare Workers). Not an npm package.",
   "license": "MIT",
-  "author": "Gu\u00f0r\u00f6\u00f0ur Atli J\u00f3nsson",
+  "author": "Guðröður Atli Jónsson",
   "repository": "github:gudrodur/cldr-is",
   "type": "module",
-  "sideEffects": [
-    "./dist/server.js",
-    "./dist/data/*.js",
-    "./src/server.ts",
-    "./src/data/*.ts"
-  ],
-  "exports": {
-    "./server": {
-      "types": "./dist/server.d.ts",
-      "default": "./dist/server.js"
-    },
-    "./client": {
-      "types": "./dist/client.d.ts",
-      "default": "./dist/client.js"
-    },
-    "./collate": {
-      "types": "./dist/collate.d.ts",
-      "default": "./dist/collate.js"
-    },
-    "./format": {
-      "types": "./dist/format.d.ts",
-      "default": "./dist/format.js"
-    },
-    "./package.json": "./package.json"
-  },
-  "files": [
-    "dist",
-    "src",
-    "README.md",
-    "LICENSE"
-  ],
   "scripts": {
     "probe": "node scripts/probe-worker-intl.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "measure": "node scripts/measure.mjs",
-    "build": "tsc",
-    "prepack": "npm run build"
+    "measure:methods": "node scripts/measure-methods.mjs"
   },
   "dependencies": {
     "@formatjs/intl-datetimeformat": "7.6.1",
@@ -52,21 +20,14 @@
     "@formatjs/intl-relativetimeformat": "12.3.13"
   },
   "devDependencies": {
+    "@formatjs/intl-collator": "0.3.1",
     "date-fns": "^4.4.0",
+    "dayjs": "1.11.23",
+    "esbuild": "0.28.2",
     "typescript": "7.0.2",
     "vitest": "4.1.11"
   },
   "engines": {
-    "node": ">=20"
-  },
-  "keywords": [
-    "icelandic",
-    "is",
-    "intl",
-    "cldr",
-    "locale",
-    "collation",
-    "polyfill",
-    "cloudflare-workers"
-  ]
+    "node": ">=24"
+  }
 }

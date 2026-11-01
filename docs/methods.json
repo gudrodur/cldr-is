@@ -1,0 +1,204 @@
+{
+  "generatedBy": "scripts/measure-methods.mjs",
+  "generatedAt": "2026-11-01",
+  "node": "v24.19.0",
+  "icu": "78.3",
+  "cldr": "48.0",
+  "size": {
+    "manual-format": {
+      "rawBytes": 3881,
+      "gzipBytes": 1361
+    },
+    "manual-collate": {
+      "rawBytes": 4060,
+      "gzipBytes": 1813
+    },
+    "manual-format-and-collate": {
+      "rawBytes": 7972,
+      "gzipBytes": 3086
+    },
+    "formatjs-is-chunk": {
+      "rawBytes": 1200933,
+      "gzipBytes": 197464
+    },
+    "formatjs-collator": {
+      "rawBytes": 6093096,
+      "gzipBytes": 808896
+    },
+    "date-fns-format-is": {
+      "rawBytes": 25829,
+      "gzipBytes": 7181
+    },
+    "dayjs-is": {
+      "rawBytes": 9618,
+      "gzipBytes": 4099
+    }
+  },
+  "correctness": {
+    "numbers": {
+      "de": {
+        "positive": {
+          "compared": 20000,
+          "differing": 0
+        },
+        "negative": {
+          "compared": 20000,
+          "differing": 0
+        },
+        "kronaWithSuffix": {
+          "compared": 20000,
+          "differing": 0
+        },
+        "percent": {
+          "compared": 20000,
+          "differing": 20000
+        }
+      },
+      "da": {
+        "positive": {
+          "compared": 20000,
+          "differing": 0
+        },
+        "negative": {
+          "compared": 20000,
+          "differing": 0
+        },
+        "kronaWithSuffix": {
+          "compared": 20000,
+          "differing": 0
+        },
+        "percent": {
+          "compared": 20000,
+          "differing": 20000
+        }
+      },
+      "es": {
+        "positive": {
+          "compared": 20000,
+          "differing": 1973
+        },
+        "negative": {
+          "compared": 20000,
+          "differing": 1974
+        },
+        "kronaWithSuffix": {
+          "compared": 20000,
+          "differing": 1974
+        },
+        "percent": {
+          "compared": 20000,
+          "differing": 20000
+        }
+      }
+    },
+    "dates": {
+      "date-fns": {
+        "longMonth": {
+          "compared": 12,
+          "differing": 0
+        },
+        "shortMonth": {
+          "compared": 12,
+          "differing": 6
+        },
+        "weekday": {
+          "compared": 7,
+          "differing": 0
+        }
+      },
+      "dayjs": {
+        "longMonth": {
+          "compared": 12,
+          "differing": 0
+        },
+        "shortMonth": {
+          "compared": 12,
+          "differing": 11
+        },
+        "weekday": {
+          "compared": 7,
+          "differing": 0
+        }
+      }
+    },
+    "collation": {
+      "borrowed-en": {
+        "alphabet": {
+          "compared": 6084,
+          "divergences": 1032
+        },
+        "latin": {
+          "compared": 202500,
+          "divergences": 15164
+        },
+        "nameListCorrect": false
+      },
+      "borrowed-da": {
+        "alphabet": {
+          "compared": 6084,
+          "divergences": 150
+        },
+        "latin": {
+          "compared": 202500,
+          "divergences": 3160
+        },
+        "nameListCorrect": false
+      },
+      "borrowed-nb": {
+        "alphabet": {
+          "compared": 6084,
+          "divergences": 72
+        },
+        "latin": {
+          "compared": 202500,
+          "divergences": 4828
+        },
+        "nameListCorrect": false
+      },
+      "borrowed-sv": {
+        "alphabet": {
+          "compared": 6084,
+          "divergences": 104
+        },
+        "latin": {
+          "compared": 202500,
+          "divergences": 5876
+        },
+        "nameListCorrect": false
+      },
+      "borrowed-de": {
+        "alphabet": {
+          "compared": 6084,
+          "divergences": 1032
+        },
+        "latin": {
+          "compared": 202500,
+          "divergences": 15164
+        },
+        "nameListCorrect": false
+      },
+      "compareIs": {
+        "alphabet": {
+          "compared": 6084,
+          "divergences": 0
+        },
+        "latin": {
+          "compared": 202500,
+          "divergences": 0
+        },
+        "nameListCorrect": true
+      },
+      "formatjs-intl-collator": {
+        "alphabet": {
+          "compared": 6084,
+          "divergences": 24
+        },
+        "latin": {
+          "compared": 202500,
+          "divergences": 25766
+        },
+        "nameListCorrect": true
+      }
+    }
+  }
+}
