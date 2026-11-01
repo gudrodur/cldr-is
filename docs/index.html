@@ -133,7 +133,7 @@
   dates and numbers there is
   no cheap fix: a <code>Intl.Collator</code> polyfill does now exist
   (<code>@formatjs/intl-collator</code>, since May 2026), but it is
-  <strong>707 KB gzipped</strong> and still disagrees with ICU on 12.7% of Latin
+  <strong>809 KB gzipped</strong> and still disagrees with ICU on 12.7% of Latin
   letter pairs. This page said it did not exist at all until 2026-09-08, which
   was asserted rather than checked.
 </p>
@@ -180,7 +180,7 @@
   the gap too. There the polyfill earns its size — loaded once per isolate, not
   per visitor, and it fixes every locale at once.
 </p>
-<pre><code>import "cldr-is/server";   // first import in the worker entry</code></pre>
+<pre><code>import "./server";   // src/server.ts, first import in the worker entry</code></pre>
 <p class="muted">
   It must be formatjs’s <code>polyfill-force</code>, not <code>polyfill</code>: the
   runtime <em>has</em> an <code>Intl.DateTimeFormat</code>, it just answers in
@@ -192,12 +192,17 @@
 <h3>In the browser: format it yourself</h3>
 <p>
   We shipped the browser polyfill behind a flag, measured it, and turned it off.
-  It is <strong>191,966 B gzip</strong>, most of it a time-zone table, against
-  <strong>2,774 B</strong> for manual formatters that also cover sorting. Copy
-  them or import them — both are fine:
+  It is <strong>197,464 B gzip</strong>, most of it a time-zone table, against
+  <strong>3,086 B</strong> for manual formatters that also cover sorting. Copy
+  them into your project:
 </p>
-<pre><code>import { formatIsDate, formatIsNumber } from "cldr-is/format";
-import { compareIs } from "cldr-is/collate";</code></pre>
+<pre><code>import { formatIsDate, formatIsNumber } from "./format";   // src/format.ts
+import { compareIs } from "./collate";                     // src/collate.ts</code></pre>
+<p>
+  These are two of several ways to solve it. The
+  <a href="https://github.com/gudrodur/cldr-is/blob/main/docs/methods.md">catalogue of methods</a>
+  compares them with measurements, including the ones two production sites use.
+</p>
 
 <h3>Then pin whatever you write to Node</h3>
 <p>

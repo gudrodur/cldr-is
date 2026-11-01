@@ -1,11 +1,11 @@
 // The browser polyfill: load formatjs's `is` data lazily, behind a
 // shouldPolyfill gate so only Chromium-based browsers pay for it.
 //
-// KEPT, BUT NOT WHAT THIS PACKAGE RECOMMENDS. The application this came from
-// shipped it behind a flag, measured it and turned it off: 191,966 B gzip,
-// most of it the time-zone table, against 2,774 B for manual formatters that
-// also cover collation, which no polyfill can. See the README's "In the
-// browser" section and docs/measurements.md.
+// KEPT, BUT NOT THE USUAL RECOMMENDATION. The application this came from
+// shipped it behind a flag, measured it and turned it off: 197,464 B gzip,
+// most of it the time-zone table, against 3,086 B for manual formatters that
+// also cover collation, which this polyfill does not. See docs/methods.md,
+// "Polyfill in the browser".
 //
 // It is still the right choice if you need arbitrary locales and arbitrary
 // option shapes in the browser — which manual formatting cannot give you.

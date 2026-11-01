@@ -60,7 +60,7 @@ const WRANGLER_BIN = findWrangler();
 // table is comparable run to run.
 const WORKER_SRC = `export default {
   fetch() {
-    const LOCALES = ["is", "en", "pl", "es", "uk", "ru", "tl"];
+    const LOCALES = ["is", "en", "pl", "es", "uk", "ru", "tl", "de", "da", "nb", "sv"];
     const PLURALS = [1, 2, 5, 11, 21, 101];
     const WORDS = ["ö", "z", "á", "a", "þ", "t", "æ", "e", "ð", "d"];
     const d = new Date(Date.UTC(2026, 11, 7, 12, 0));
