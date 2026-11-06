@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Month } from "date-fns";
 import { is as dateFnsIs } from "date-fns/locale/is";
 import reference from "../docs/reference.json" with { type: "json" };
 import { CASES, INSTANT, NAMES, sourceOf } from "../docs/cases.js";
@@ -58,12 +59,12 @@ describe("docs/reference.json is current", () => {
     // measurements doc and the demo page all render this table — so a change
     // there has to fail here rather than make three documents wrong at once.
     const months = Array.from({ length: 12 }, (_, i) =>
-      dateFnsIs.localize.month(i, { width: "abbreviated" }),
+      dateFnsIs.localize.month(i as Month, { width: "abbreviated" }),
     );
     expect(months, "date-fns changed — run `npm run measure` and re-read the prose").toEqual(
       reference.dateFns.monthsShort,
     );
-    expect(dateFnsIs.options.weekStartsOn).toBe(reference.dateFns.weekStartsOn);
+    expect(dateFnsIs.options?.weekStartsOn).toBe(reference.dateFns.weekStartsOn);
 
     // And the divergence the docs describe is recomputed, not asserted from memory.
     const cldr = Array.from({ length: 12 }, (_, i) =>

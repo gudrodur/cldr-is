@@ -5,7 +5,7 @@
   // to come back. The Safari result arrived as a screenshot in a chat, and its
   // browser version is gone forever because nothing recorded it. This is that,
   // without asking anyone for a screenshot.
-  // KEEPS THE OLD NAME ON PURPOSE. The repo and the npm package were renamed
+  // KEEPS THE OLD NAME ON PURPOSE. The repo and the package name were renamed
   // intl-is -> cldr-is on 2026-09-09; this Worker was not. A Worker name is a
   // hostname (intl-is-reports.gudrodur.workers.dev) and it does not redirect,
   // and docs/index.html POSTs every collected report to it. Renaming would drop

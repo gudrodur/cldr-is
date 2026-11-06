@@ -116,6 +116,14 @@ catalogue like this one worth trusting. The history in
 ```bash
 npm ci
 npm test                  # the methods, pinned to Node's full ICU
-npm run measure:methods   # rewrites docs/methods.json
+npm run measure:methods   # rewrites docs/methods.json only if an answer changed
 npm run probe             # bare workerd; needs wrangler on PATH
 ```
+
+## Names
+
+The repo and package were renamed `intl-is` -> `cldr-is` on 2026-09-09. The
+report collector Worker and its D1 database keep the old name, `intl-is-reports`,
+on purpose: a Worker name is a hostname and does not redirect, and the demo page
+posts to it. A local checkout may also still sit in a directory called `intl-is`.
+Details in [`CLAUDE.md`](CLAUDE.md).
