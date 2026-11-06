@@ -17,7 +17,7 @@
 // or workerd. That was measured in those runtimes and recorded in
 // docs/measurements.md, "Borrowing a locale".
 
-import { writeFileSync } from "node:fs";
+import { writeGenerated } from "./lib/write-generated.mjs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync, constants } from "node:zlib";
@@ -70,7 +70,7 @@ for (const [name, contents] of Object.entries(BUNDLES)) {
 
 const result = {
   generatedBy: "scripts/measure-methods.mjs",
-  generatedAt: new Date().toISOString().slice(0, 10),
+  generatedAt: "",
   node: process.version,
   icu: process.versions.icu,
   cldr: process.versions.cldr,
@@ -78,5 +78,7 @@ const result = {
   correctness: await correctness(),
 };
 
-writeFileSync(join(ROOT, "docs/methods.json"), `${JSON.stringify(result, null, 2)}\n`);
-console.log(JSON.stringify(result, null, 2));
+const status = writeGenerated(join(ROOT, "docs/methods.json"), result);
+console.log(
+  `docs/methods.json ${status}: ${Object.keys(size).length} bundles sized, ${result.correctness ? "correctness measured" : "no correctness"} (Node ${process.version})`,
+);

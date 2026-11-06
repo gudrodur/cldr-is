@@ -188,8 +188,8 @@ version anyone has reported". Where a table is genuinely useful, date it
 explicitly as a snapshot and link the live source beside it.
 
 **The exception is measurements of fixed artefacts**, and it is not a small one
-— 707,603 B gzipped, 12.7% of Latin pairs, 81,200 bytes of `icudtl.dat`. Those
-are properties of a file that will read the same next year, and hedging them
+— 808,896 B gzipped (`@formatjs/intl-collator` 0.3.1), 12.7% of Latin pairs,
+81,200 bytes of `icudtl.dat`. Those are properties of a file that will read the same next year, and hedging them
 would throw away the precision that makes them worth having. The test is whether
 anyone can change the number by opening a web page.
 

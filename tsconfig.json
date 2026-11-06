@@ -12,7 +12,9 @@
     "noEmit": true,
 
     "verbatimModuleSyntax": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "types": ["node"],
+    "allowImportingTsExtensions": true
   },
-  "include": ["src"]
+  "include": ["src", "test"]
 }
