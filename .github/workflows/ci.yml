@@ -1,0 +1,71 @@
+# The demo page in docs/ shows what CLDR says, from docs/reference.json — a file
+# that is GENERATED (npm run measure) rather than typed. test/reference.test.ts
+# fails when the committed answers have drifted from what Node's full ICU
+# produces now, which is the only thing standing between a Node/ICU upgrade and
+# a published page confidently showing answers nobody has checked.
+#
+# That guard existed before this workflow did, and nothing ran it. A guard
+# nobody runs is not a guard.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      # Several zones on purpose, and the first reason is the one that is easy
+      # to miss: ICELAND HAS NO DST. It dropped daylight saving in 1968 while
+      # nearly every European country kept it, so the zone this code is FOR is
+      # the one zone where an offset never moves. Measured over the parity
+      # sweep's own instants: 30.1% carry a summer offset in Europe/Copenhagen,
+      # 34.4% in America/Los_Angeles, and 0.0% in Atlantic/Reykjavik. A suite
+      # run only at home tests that axis on nothing. Making formatIsTime read
+      # local fields instead of UTC fails four tests in Copenhagen and one in
+      # Reykjavik.
+      #
+      # The date shapes read LOCAL wall-clock, so a suite that only ever runs in
+      # UTC can pass while the formatters are wrong everywhere else — that is
+      # how a real bug survived a review round.
+      #
+      # Copenhagen alone is not enough either. It is UTC+1/+2, so a UTC/local
+      # mixup there moves the HOUR and only sometimes the date. Kiritimati
+      # (UTC+14) and Niue (UTC-11) sit on the far side of the date line from UTC,
+      # so the same mixup moves the DAY on most instants, and Kathmandu's
+      # UTC+5:45 is the one that catches an offset assumed to be whole hours.
+      - run: npm test
+      - name: npm test (Europe/Copenhagen)
+        run: TZ=Europe/Copenhagen npm test
+      - name: npm test (Pacific/Kiritimati, UTC+14)
+        run: TZ=Pacific/Kiritimati npm test
+      - name: npm test (Pacific/Niue, UTC-11)
+        run: TZ=Pacific/Niue npm test
+      - name: npm test (Asia/Kathmandu, UTC+5:45)
+        run: TZ=Asia/Kathmandu npm test
+      # Regenerating must be a no-op in the ANSWERS. If it is not, someone
+      # edited a case without running `npm run measure`, and the page and the
+      # reference have parted company.
+      #
+      # `generatedBy` and `generatedAt` are deliberately excluded. They record
+      # which Node produced the file, which is worth keeping in the file and is
+      # not an answer — and it differs between a laptop and a runner on another
+      # patch release. The first run of this workflow failed on exactly that,
+      # v24.19.0 against v24.20.0, with all twelve renderings identical. A gate
+      # that fails on something harmless is how a gate stops being read.
+      - name: docs/reference.json answers are current
+        run: |
+          answers() { jq -S 'del(.generatedBy, .generatedAt)' "$1"; }
+          answers docs/reference.json > /tmp/recorded.json
+          npm run measure
+          answers docs/reference.json > /tmp/fresh.json
+          diff -u /tmp/recorded.json /tmp/fresh.json

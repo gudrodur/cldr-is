@@ -1,0 +1,41 @@
+{
+  "$comment": "Issue-title areas for cldr-is. `area: description`, lower-case area from this list. Kept short on purpose: this repo is a catalogue of methods plus the demo page that measures the problem, and an area list longer than the thing it describes stops being read. Add an area when a second issue would have wanted it, not in anticipation.",
+  "areas": [
+    "collate",
+    "format",
+    "polyfill",
+    "collector",
+    "docs",
+    "methods",
+    "build",
+    "ci",
+    "test"
+  ],
+  "nearMisses": {
+    "sort": "collate",
+    "sorting": "collate",
+    "comparator": "collate",
+    "date": "format",
+    "dates": "format",
+    "number": "format",
+    "numbers": "format",
+    "time": "format",
+    "intl": "polyfill",
+    "icu": "polyfill",
+    "data": "polyfill",
+    "page": "collector",
+    "demo": "collector",
+    "reports": "collector",
+    "worker": "collector",
+    "readme": "docs",
+    "measurements": "docs",
+    "method": "methods",
+    "catalogue": "methods",
+    "package": "build",
+    "tsconfig": "build",
+    "tests": "test",
+    "parity": "test",
+    "workflow": "ci",
+    "actions": "ci"
+  }
+}

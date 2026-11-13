@@ -1,0 +1,35 @@
+{
+  "name": "cldr-is",
+  "private": true,
+  "description": "A catalogue of methods, with measurements, for Icelandic dates, numbers and sorting on runtimes that ship without the data (desktop Chromium, Cloudflare Workers). Not an npm package.",
+  "license": "MIT",
+  "author": "Guðröður Atli Jónsson",
+  "repository": "github:gudrodur/cldr-is",
+  "type": "module",
+  "scripts": {
+    "probe": "node scripts/probe-worker-intl.mjs",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p collector",
+    "test": "vitest run",
+    "measure": "node scripts/measure.mjs",
+    "measure:methods": "node scripts/measure-methods.mjs"
+  },
+  "dependencies": {
+    "@formatjs/intl-datetimeformat": "7.6.1",
+    "@formatjs/intl-listformat": "8.3.13",
+    "@formatjs/intl-numberformat": "9.4.0",
+    "@formatjs/intl-relativetimeformat": "12.3.13"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261106.1",
+    "@formatjs/intl-collator": "0.3.1",
+    "@types/node": "24.19.2",
+    "date-fns": "^4.4.0",
+    "dayjs": "1.11.23",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2",
+    "vitest": "4.1.12"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

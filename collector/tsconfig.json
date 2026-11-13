@@ -1,0 +1,19 @@
+{
+  // The Worker runs on workerd, not in a browser or Node, so it gets its own
+  // lib and types: the root tsconfig (DOM + Node) would type-check it against
+  // globals it does not have. `npm run typecheck` runs both.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/workers-types"],
+    "noEmit": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src", "*.test.ts"]
+}

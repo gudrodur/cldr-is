@@ -1,0 +1,48 @@
+# Server-side authorship guard for a repo with no hook or CI of its own.
+#
+# Copy this file to .github/workflows/ai-authorship-guard.yml and authorship-check.sh
+# to .github/scripts/authorship-check.sh. A local hook binds only the sessions
+# that run it; this check binds every PR. It extends a plain AI-identity
+# check with an owner allowlist, because a fabricated identity such as
+# `Someone <someone@example.com>` is not an AI name and passes an AI-name-only check.
+#
+# The commit checks live in .github/scripts/authorship-check.sh, so the same
+# script runs here and locally. No path filter: a docs-only PR is checked too.
+name: ai-authorship
+
+on:
+  pull_request:
+    # `edited`: a marker can be added to the PR body after it is opened.
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The whole PR range has to be walkable, not just the tip.
+          fetch-depth: 0
+
+      - name: Commit authors, committers and messages
+        run: bash .github/scripts/authorship-check.sh "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+
+      - name: Pull request body
+        env:
+          # Via env, never interpolated into the script: a PR body is
+          # untrusted input, and `${{ }}` inside run: is a shell injection.
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          AI='Claude|Anthropic|Copilot|GPT|OpenAI|Gemini'
+          # Anchored, like the commit checks: a PR that describes the policy
+          # quotes these strings and must still pass.
+          if printf '%s' "${BODY:-}" \
+            | grep -qiE "^[[:space:]]*Co-Authored-By:.*($AI)|^[[:space:]]*(🤖[[:space:]]*)?Generated (with|by).*($AI)|^[[:space:]]*🤖|^[[:space:]]*Claude-Session:|^[[:space:]]*https://claude\.ai/"; then
+            echo "::error::The pull request body carries an AI attribution marker"
+            exit 1
+          fi
+          echo "✓ pull request body carries no AI attribution"
