@@ -2,14 +2,14 @@
 # lowercase token from THIS repo's vocabulary.
 #
 # The grammar is global across every repo on this machine; the vocabulary is
-# not — `kosningar` is meaningless in other repos of the family. So
+# not — `kosningar` is meaningless in flue-lab and `browser` in borgarland. So
 # the list lives in `.github/issue-areas.json`, and this workflow reads it
 # rather than embedding a copy. The PreToolUse hook on the dev machine
-# (a local issue-title hook) reads the SAME file, so the gate that
+# (issue-title-hook.mjs) reads the SAME file, so the gate that
 # runs before an issue exists and the gate that runs after cannot disagree.
 #
 # This is the BACKSTOP, not the main event. Measured 2026-08-27: of the 33
-# violations in one repo since June, every one was filed from the dev
+# title violations in one busy repo since June, every one was filed from the dev
 # machine's CLI — so the hook catches essentially all of them before the issue
 # exists. What is left for this workflow is what the hook cannot see: the web
 # UI, a phone, another machine, another person, a cloud session.
@@ -23,13 +23,27 @@
 # makes the two indistinguishable. The label is the machine-readable signal;
 # open state keeps the work visible.
 #
+# The violation comment carries a hidden marker, and the guard posts it only when
+# no marked comment exists, so label churn (a hand-removed label, a re-label) never
+# adds a second one. An older comment without the marker is recognised by its first
+# line. Only a comment written by github-actions[bot] counts, so a person who
+# quotes the marker is neither deleted nor mistaken for the warning. A per-issue
+# concurrency group collapses simultaneous events (opened plus labeled) to one run.
+# When the title is fixed the guard removes the label and DELETES its own
+# violation comment(s) and posts nothing: silence is the success signal, and no
+# stale warning stays on the issue.
+#
 # Nothing here escalates. If a labelled issue is ignored, the weekly sweep
-# (a separate scheduled job) is what says so.
+# (revisit-sweep.mjs) is what says so.
 name: issue-title-guard
 
 on:
   issues:
     types: [opened, edited, reopened, labeled]
+
+concurrency:
+  group: issue-title-guard-${{ github.event.issue.number }}
+  cancel-in-progress: true
 
 permissions:
   # `contents: read` is NOT optional here, and its absence is invisible until the
@@ -46,9 +60,6 @@ jobs:
     runs-on: ${{ fromJSON(vars.GUARD_RUNNER_LABELS || '["ubuntu-slim"]') }}
     steps:
       - uses: actions/checkout@v7
-        with:
-          sparse-checkout: .github
-          sparse-checkout-cone-mode: false
 
       - uses: actions/github-script@v9
         with:
@@ -78,6 +89,21 @@ jobs:
 
             const labelled = (issue.labels || []).some((l) => (l.name || l) === LABEL);
 
+            // The guard's own violation comments: the marker, or, for comments
+            // posted before the marker existed, the first line they all share.
+            const MARKER = "<!-- issue-title-guard -->";
+            const OLD_FIRST_LINE = "🚫 **This issue title does not follow the repo convention.**";
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: num, per_page: 100,
+            });
+            // Only github-actions[bot] comments count: a person quoting the marker
+            // is never deleted and never suppresses the real violation comment.
+            const mine = comments.filter((c) => {
+              if (c.user?.type !== "Bot" || c.user?.login !== "github-actions[bot]") return false;
+              const text = c.body || "";
+              return text.includes(MARKER) || text.startsWith(OLD_FIRST_LINE);
+            });
+
             // Two stages, mirroring scripts/issue-title-guard.mjs. Validity is
             // ASCII; DIAGNOSIS is widened to Icelandic letters so the comment can
             // say "`skráning` is not an area, did you mean `skraning`?" instead
@@ -95,23 +121,29 @@ jobs:
             const foldHint = folded && folded !== area && areas.includes(folded) ? folded : null;
 
             if (ok) {
-              if (!labelled) return;
-              await github.rest.issues
-                .removeLabel({ owner, repo, issue_number: num, name: LABEL })
-                .catch(() => {});
-              await github.rest.issues.createComment({
-                owner, repo, issue_number: num,
-                body: "✅ Title now follows `area: description`.",
-              });
+              if (labelled) {
+                await github.rest.issues
+                  .removeLabel({ owner, repo, issue_number: num, name: LABEL })
+                  .catch(() => {});
+              }
+              for (const c of mine) {
+                await github.rest.issues
+                  .deleteComment({ owner, repo, comment_id: c.id })
+                  .catch(() => {});
+              }
               return;
             }
 
-            // Comment + label only on first detection — no spam on repeated edits.
-            if (labelled) return;
-            await github.rest.issues.addLabels({ owner, repo, issue_number: num, labels: [LABEL] });
+            // Label on every violation (idempotent), comment only while none exists:
+            // the comment, not the label, is what stops the spam.
+            if (!labelled) {
+              await github.rest.issues.addLabels({ owner, repo, issue_number: num, labels: [LABEL] });
+            }
+            if (mine.length > 0) return;
             const near = (area && nearMisses[area]) || foldHint;
             const body = [
-              "🚫 **This issue title does not follow the repo convention.**",
+              MARKER,
+              OLD_FIRST_LINE,
               "",
               "**Rule:** `<area>: <concise description>` — the area lowercase, from this repo's list (e.g. `" + areas[0] + ": …`).",
               area === "area"
