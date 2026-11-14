@@ -35,7 +35,8 @@ permissions:
 
 jobs:
   guard:
-    runs-on: ${{ fromJSON(vars.GUARD_RUNNER_LABELS || '["ubuntu-slim"]') }}
+    # A public repo never runs on self-hosted runners (fork code).
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-node@v7
         with:
