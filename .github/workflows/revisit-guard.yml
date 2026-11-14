@@ -2,16 +2,68 @@
 #
 # `blocked: time` says nobody is being chased — only elapsed time or accumulated
 # data unblocks the issue. The thing that brings it back is a `Revisit:
-# YYYY-MM-DD` line in the body, read by a weekly sweep.
+# YYYY-MM-DD` line in the body, read weekly by revisit-sweep.mjs.
 # A label applied WITHOUT that line is a promise nothing can keep: the issue is
 # marked as sleeping and nothing will ever wake it.
 #
 # The reverse is just as dead: a dated `Revisit:` line with no label. The sweep
 # acts only on a labelled issue and reports this one as `dateless`, in a service
 # journal no author reads, so the date looks like a promise and is not one. The
-# guard therefore speaks in both directions, and on `opened` as well as later. It
-# does not watch `unlabeled`: the sweep's own wake-up removes the label while it
-# rewrites the key to `Revisited:`, and that order is not guaranteed.
+# guard therefore enforces ONE invariant on an open issue: a `Revisit: YYYY-MM-DD`
+# line implies the `blocked: time` label. To drop the label, a person removes or
+# rewrites the date line; the daily sweep does exactly that when it wakes an issue
+# (it rewrites the key to `Revisited:`). A person who removes only the label and
+# leaves the line sees the label come back: that is the stated behaviour, and
+# when the removal was the `unlabeled` event for the label itself the guard says so
+# once, in a note keyed on its own marker (see below).
+#
+# - date, no label: it ADDS the label itself and posts nothing. If the call fails
+#   it falls back to the dateless comment. Exception: when the event is the
+#   `unlabeled` event for this very label, someone removed it on purpose, so after
+#   the re-add the guard posts ONE note (READDED_MARKER) explaining that the
+#   `Revisit:` line keeps the label and how to drop it. Every other path (a newly
+#   opened issue, an edit that adds the line) is the expected one and stays silent.
+#   A second removal finds the note already there and posts nothing.
+# - label, no date: one comment, keyed on its marker. A date cannot be invented.
+# - whole pair (both or neither): it DELETES its own marker comments of both
+#   kinds, so no stale warning outlives the fix. The re-add note goes on EVERY
+#   run that finds no live `Revisit:` line, whichever branch follows (so also
+#   when the undated warning is posted); with a line and the label it explains
+#   something true, so it stays.
+#
+# A `Revisit:` line inside a fenced code block (``` or ~~~, including an unclosed
+# trailing fence) or a `>` block quote is a quotation of the convention, not a
+# promise, and is ignored. scripts/revisit-sweep.mjs applies the same rule
+# (liveLines); this copy is inline because the file is installed in other repos,
+# and revisit-guard.test.mjs runs one fixture table through both.
+#
+# No event type is special. Every run waits a few seconds, then reads the LIVE
+# issue and applies the pair rule to that, not to the event payload. The sweep's
+# wake-up is one `gh issue edit` that removes the label and rewrites the body, and
+# gh makes those as separate, concurrent API calls (no defined order: gh's
+# pkg/cmd/pr/shared/editable_http.go UpdateIssue starts the label mutations in an
+# errgroup alongside the body update). The wait only makes it LIKELY that both
+# writes are visible when the guard reads; it is not a guarantee, and a retry can
+# split them by longer. When the guard does read a half-pair it may act on it, and
+# that is repaired, not final: the second write fires its own event, the next run
+# re-reads the live issue, and the concurrency group below cancels the older run.
+# A per-issue concurrency group with cancel-in-progress collapses a burst of
+# events to the last run. Events caused by this workflow's own GITHUB_TOKEN do not
+# start new runs, so the label it adds does not re-trigger it.
+#
+# The sweep cannot be told apart from a person. It runs from a user systemd timer
+# on the owner's machine with the owner's `gh` login, so the event's sender is the
+# same account that removes a label by hand; skipping on the sender would also
+# skip every real removal. So the case is named, not hidden: if both reads still
+# see the old body, the guard re-adds the label and posts the re-add note, and the
+# next run corrects it. The sweep's body write fires an `edited` event; that run
+# finds no live `Revisit:` line and deletes the note, and the label it re-added is
+# then the half pair "label, no date", which gets the undated warning until a
+# person drops the label. The second read above is what makes this rare.
+#
+# A comment counts as this guard's own, for skip-if-exists and for deletion, only
+# when github-actions[bot] wrote it AND it carries the marker. A person quoting
+# the marker is never deleted and never suppresses the real warning.
 #
 # Deliberately a LOOSE check. It asks only whether a dated Revisit line is there
 # at all, which is the failure that actually happens; the sweep remains the
@@ -26,25 +78,36 @@
 # of them are missing the file.
 #
 # Each direction comments ONCE, keyed on its own marker, so editing the issue
-# repeatedly does not spam it. Fixing the body produces no confirmation comment: silence is the
-# success signal, and the weekly sweep will list the issue as `waiting`.
+# repeatedly does not spam it. The weekly sweep lists a repaired issue as `waiting`.
 #
-# runs-on is pinned to ubuntu-latest rather than the RUNNER_LABELS fallback its
-# sibling guards use. Those resolve to a self-hosted box, and a guard that only
-# fires when a particular laptop is awake is not a guard. This job is a few
-# seconds of github-script with no checkout, so the hosted-minutes cost is
-# negligible.
+# runs-on resolves through GUARD_RUNNER_LABELS, whose literal default is
+# ubuntu-slim: GitHub's single-CPU hosted runner, 1 vCPU / 5 GB, $0.002 a minute
+# against $0.006 for ubuntu-latest (docs.github.com/billing/reference/
+# actions-runner-pricing, read 2026-09-19). The default must stay HOSTED: this file
+# is COPIED into every repo that opts in, most of which have no self-hosted lane,
+# and a guard that only fires when some box is awake is not a guard. slim fits
+# because these jobs are seconds of github-script or a short node run, well inside
+# its 15-minute job timeout, and it ships bash, git, jq and Node 24. What the
+# variable adds is the way out of a spent hosted pool: an operator can point the
+# guard at a lane with `gh variable set GUARD_RUNNER_LABELS` when hosted jobs die in
+# seconds, which is exactly the moment a commit-and-PR escape cannot be used,
+# because the PR's own checks would be waiting on the pool that is spent.
 name: revisit-guard
 
 on:
   issues:
-    types: [opened, labeled, edited]
+    types: [opened, reopened, labeled, edited, unlabeled]
 
 permissions:
   issues: write
 
+concurrency:
+  group: revisit-guard-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
 jobs:
   guard:
+    # A public repo never runs on self-hosted runners (fork code).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v9
@@ -53,28 +116,125 @@ jobs:
             const LABEL = "blocked: time";
             const MARKER = "<!-- revisit-guard -->";
             const DATELESS_MARKER = "<!-- revisit-guard:dateless -->";
+            const READDED_MARKER = "<!-- revisit-guard:readded -->";
             const { owner, repo } = context.repo;
-            const issue = context.payload.issue;
-            const num = issue.number;
+            const num = context.payload.issue.number;
+            // Wait, then read the issue live, not from the payload: the payload is
+            // the snapshot of the event that fired, and the sweep's wake-up changes
+            // label and body in two concurrent calls. The wait makes both writes
+            // likely visible; it guarantees nothing (see the header). A half pair
+            // (the label without the date, or the date without the label) is the
+            // shape of a write still in flight, so it is read ONCE MORE after a
+            // second wait and only a half pair that survives is acted on.
+            // `context.settleMs` is for tests only.
+            const settle = () => {
+              context.onSettle?.();
+              return new Promise((r) => setTimeout(r, context.settleMs ?? 10000));
+            };
 
-            const labelled = (issue.labels || []).some((l) => (l.name || l) === LABEL);
+            // Lines in a fenced block or a block quote only quote the convention.
+            // Same rule as liveLines in scripts/revisit-sweep.mjs: a fence closes
+            // only with the same character, at least as long, and nothing but
+            // spaces after it; CRLF, CR and LF all end a line.
+            const liveBodyOf = (text) => {
+              let fence = null;
+              return (text || "").split(/\r\n|\r|\n/).filter((line) => {
+                const m = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+                if (fence) {
+                  if (m && m[1][0] === fence.char && m[1].length >= fence.len && m[2].trim() === "") fence = null;
+                  return false;
+                }
+                if (m && !(m[1][0] === "`" && m[2].includes("`"))) {
+                  fence = { char: m[1][0], len: m[1].length };
+                  return false;
+                }
+                return !/^\s*>/.test(line);
+              }).join("\n");
+            };
 
-            // Loose on purpose — see the header. `Revisit:` followed by something
-            // date-shaped, anywhere in the body, tolerating bold/backticks/quoting.
-            // A spent `Revisited:` does not match, since the key must end at the colon.
-            const date = /^[\s>*_`-]*revisit[*_`]*\s*:\s*[*_`]*\s*(\d{4}-\d{2}-\d{2})/im
-              .exec(issue.body || "")?.[1];
-
-            // The label and the date only work as a pair.
-            if (labelled === Boolean(date)) return;
-            // The sweep reads open issues only, so a closed one has no promise to break.
-            if (date && issue.state === "closed") return;
-            const marker = date ? DATELESS_MARKER : MARKER;
+            const read = async () => {
+              const { data } = await github.rest.issues.get({ owner, repo, issue_number: num });
+              // Loose on purpose, see the header. `Revisit:` followed by something
+              // date-shaped, on a live line, tolerating bold/backticks/list marks.
+              // A spent `Revisited:` does not match, since the key must end at the colon.
+              return {
+                issue: data,
+                labelled: (data.labels || []).some((l) => (l.name || l) === LABEL),
+                date: /^[\s*_`-]*revisit[*_`]*\s*:\s*[*_`]*\s*(\d{4}-\d{2}-\d{2})/im
+                  .exec(liveBodyOf(data.body))?.[1],
+              };
+            };
+            await settle();
+            let state = await read();
+            if (state.labelled !== Boolean(state.date)) {
+              await settle();
+              state = await read();
+            }
+            const { issue, labelled, date } = state;
 
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner, repo, issue_number: num, per_page: 100,
             });
-            if (comments.some((c) => (c.body || "").includes(marker))) return;
+            const mine = (marker) => comments.filter((c) =>
+              c.user?.type === "Bot" && c.user?.login === "github-actions[bot]" &&
+              (c.body || "").includes(marker));
+            const remove = async (list) => {
+              for (const c of list) {
+                await github.rest.issues
+                  .deleteComment({ owner, repo, comment_id: c.id })
+                  .catch(() => {});
+              }
+            };
+
+            // The re-add note explains a `Revisit:` line. Once no live line is left
+            // it is stale whatever else this run does (label or no label, warning
+            // or none), so it goes here, once, ahead of every branch below.
+            if (!date) await remove(mine(READDED_MARKER));
+
+            // The label and the date only work as a pair. A whole pair needs no
+            // warning, so take down whatever this guard said earlier.
+            if (labelled === Boolean(date)) {
+              await remove([...mine(MARKER), ...mine(DATELESS_MARKER)]);
+              return;
+            }
+            // The sweep reads open issues only, so a closed one has no promise to break.
+            if (date && issue.state === "closed") return;
+
+            if (date) {
+              // A date is there now, so an earlier undated warning is stale.
+              await remove(mine(MARKER));
+              try {
+                await github.rest.issues.addLabels({ owner, repo, issue_number: num, labels: [LABEL] });
+                // Healed: the pair is whole now, so no warning of either kind may stay.
+                await remove(mine(DATELESS_MARKER));
+                // Removing the label on purpose deserves an answer, once.
+                const removedOnPurpose =
+                  context.payload.action === "unlabeled" && context.payload.label?.name === LABEL;
+                if (removedOnPurpose && mine(READDED_MARKER).length === 0) {
+                  // A failed note must not fall through to the dateless comment below.
+                  await github.rest.issues.createComment({
+                    owner, repo, issue_number: num,
+                    body: [
+                      READDED_MARKER,
+                      `The \`blocked: time\` label was put back because the body still has a \`Revisit: ${date}\` line.`,
+                      "",
+                      "A `Revisit:` line implies the label: the weekly sweep wakes only labelled issues.",
+                      "To drop the wake-up, remove that line (or rewrite the key, as the sweep does",
+                      "when it wakes an issue: `Revisited:`), then remove the label.",
+                    ].join("\n"),
+                  }).catch((e) => core.info(`could not post the re-add note (${e.message})`));
+                }
+                return;
+              } catch (e) {
+                core.info(`could not add the label (${e.message}), falling back to the comment`);
+              }
+            } else {
+              // The label is there now, so an earlier dateless warning is stale.
+              await remove(mine(DATELESS_MARKER));
+            }
+
+            const marker = date ? DATELESS_MARKER : MARKER;
+            if (mine(marker).length > 0) return;
 
             const body = date ? [
               marker,
