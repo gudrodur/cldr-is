@@ -1,18 +1,13 @@
 # Enforces the issue-title convention: `area: description`, where `area` is a
 # lowercase token from THIS repo's vocabulary.
 #
-# The grammar is global across every repo on this machine; the vocabulary is
-# not — `kosningar` is meaningless in flue-lab and `browser` in borgarland. So
-# the list lives in `.github/issue-areas.json`, and this workflow reads it
-# rather than embedding a copy. The PreToolUse hook on the dev machine
-# (issue-title-hook.mjs) reads the SAME file, so the gate that
-# runs before an issue exists and the gate that runs after cannot disagree.
+# The grammar is the same in every repo; the vocabulary is not, so the list of
+# areas lives in `.github/issue-areas.json` and this workflow reads it rather than
+# embedding a copy. A local pre-creation check can read the same file, so the gate
+# that runs before an issue exists and the gate that runs after cannot disagree.
 #
-# This is the BACKSTOP, not the main event. Measured 2026-08-27: of the 33
-# title violations in one busy repo since June, every one was filed from the dev
-# machine's CLI — so the hook catches essentially all of them before the issue
-# exists. What is left for this workflow is what the hook cannot see: the web
-# UI, a phone, another machine, another person, a cloud session.
+# This is the BACKSTOP, not the main event. It catches what a local check cannot
+# see: the web UI, a phone, another machine, another person, a cloud session.
 #
 # It does NOT close the issue. An earlier version did, on the reasoning that
 # GitHub cannot block issue creation so closing was the strictest lever
@@ -33,8 +28,8 @@
 # violation comment(s) and posts nothing: silence is the success signal, and no
 # stale warning stays on the issue.
 #
-# Nothing here escalates. If a labelled issue is ignored, the weekly sweep
-# (revisit-sweep.mjs) is what says so.
+# Nothing here escalates. If a labelled issue is ignored, a periodic sweep, where
+# one is set up, is what says so.
 name: issue-title-guard
 
 on:
@@ -68,8 +63,7 @@ jobs:
             const fs = require("fs");
             const LABEL = "title-needs-fix";
             const { owner, repo } = context.repo;
-            const issue = context.payload.issue;
-            const num = issue.number;
+            const num = context.payload.issue.number;
 
             // No vocabulary means this repo has not opted in. Do nothing at all
             // rather than guessing a list — a guard that invents the rule it
@@ -88,6 +82,10 @@ jobs:
               return;
             }
 
+            // The issue as it is NOW, not the event payload: runs for one issue overlap
+            // (a cancelled `opened` run can act after the `edited` run that fixed the
+            // title), and the payload is the snapshot of the event that fired.
+            const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number: num });
             const labelled = (issue.labels || []).some((l) => (l.name || l) === LABEL);
 
             // The guard's own violation comments: the marker, or, for comments
@@ -122,11 +120,14 @@ jobs:
             const foldHint = folded && folded !== area && areas.includes(folded) ? folded : null;
 
             if (ok) {
-              if (labelled) {
-                await github.rest.issues
-                  .removeLabel({ owner, repo, issue_number: num, name: LABEL })
-                  .catch(() => {});
-              }
+              // Unconditional: the event payload is a snapshot, and the `opened` run can add
+              // the label after it was taken. A 404 means the label is not there, which is
+              // the goal; any other error is real and fails the run.
+              await github.rest.issues
+                .removeLabel({ owner, repo, issue_number: num, name: LABEL })
+                .catch((e) => {
+                  if (e.status !== 404) throw e;
+                });
               for (const c of mine) {
                 await github.rest.issues
                   .deleteComment({ owner, repo, comment_id: c.id })

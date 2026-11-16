@@ -1,29 +1,21 @@
 # Server-side guard: fail a PR whose description would close an issue it only
-# mentions. Canonical copy: the private tooling repo's templates/pr-close-row-guard/; every
-# convention repo carries it byte-identical at .github/workflows/, and
-# that repo's convention audit reports a copy that drifts.
+# mentions. Every repo that carries this guard keeps it byte-identical at
+# .github/workflows/pr-close-row-guard.yml.
 #
 # GitHub reads a closing keyword (close/closes/closed, fix/fixes/fixed,
 # resolve/resolves/resolved) anywhere in a PR description as closing the WHOLE
 # issue on merge. Three shapes close one by accident, and this check fails all three:
-#   - a keyword + ref + `row(s)`: "Fixes #914 row 1" meant one row and closed
-#     all of #914 (a PR once did exactly this);
-#   - a past-tense keyword mid-sentence: "#12 closed #914 on merge" is
-#     narration, and it closes #914 too. A close that is meant sits at the start
-#     of its own line ("Fixes #12"); code spans are ignored, like GitHub does.
+#   - a keyword + ref + `row(s)`: "Fixes #N row 1" meant one row and closed
+#     all of #N;
+#   - a past-tense keyword mid-sentence: "#M closed #N on merge" is
+#     narration, and it closes #N too. A close that is meant sits at the start
+#     of its own line ("Fixes #M"); code spans are ignored, like GitHub does;
 #   - a keyword in any tense after a negation or inside quotes: "Does NOT
-#     close #150" closed the same issue twice (the keyword was negated, GitHub ignores that).
+#     close #N" closes it anyway (GitHub ignores the negation).
 #
-# The dev machine's PreToolUse hook (the private tooling repo's scripts/pr-close-row-hook.mjs)
-# refuses the same shapes before a PR is posted, but only in Claude Code
-# sessions; this is the backstop for everything else. The matcher is inlined
-# because most of these repos cannot read the tooling repo; its
-# pr-close-row-hook.test.mjs runs this exact script against the hook's own
-# functions on one corpus, so the two cannot drift apart unnoticed.
-#
-# The body travels through the PR_BODY env var, never interpolated into `run:`
-# (`${{ }}` inside `run:` is an injection hole). It fails a check and edits
-# nothing, so it needs no write scope, and the matcher is inline, so no checkout.
+# The matcher is inlined, so the job needs no checkout and no write scope: it
+# fails a check and edits nothing. The body travels through the PR_BODY env var,
+# never interpolated into `run:` (`${{ }}` inside `run:` is an injection hole).
 name: pr-close-row-guard
 
 on:
